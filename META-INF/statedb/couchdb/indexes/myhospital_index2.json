@@ -1,0 +1,9 @@
+
+{
+    "index":{
+        "fields":["patientId","doctype","doctorId"] 
+    },
+    "ddoc":"index2Doc",
+    "name":"Prescription_index2",
+    "type":"json"
+}

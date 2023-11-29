@@ -9,16 +9,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 )
 
 const HOSPITAL = "HOSPITAL"
+const PATIENT = "PATIENT"
 const HOSPITAL_ADMIN = "HOSPITAL_ADMIN"
 const ADMIN = "admin"
-const DOCTER = "DOCTER"
+const DOCTOR = "DOCTOR"
 const Org1MSP = "Org1MSP"
 const Org2MSP = "Org2MSP"
+const PRESCRIPTION = "PRESCRIPTION"
+const idDoctypeIndex = "id~doctype"
+const id_DrId_DoctypeIndex = "id~drId~doctype"
 
 // SmartContract provides functions for managing a Asset and Token
 type SmartContract struct {
@@ -26,6 +31,7 @@ type SmartContract struct {
 }
 
 type Hospital struct {
+	Id              string `json:"id"`
 	Name            string `json:"name"`
 	DocType         string `json:"docType"`
 	Address         string `json:"address"`
@@ -35,51 +41,61 @@ type Hospital struct {
 }
 
 type HospitalAdmin struct {
-	Name             string `json:"name"`
-	FirstName        string `json:"firstName"`
-	MiddleName       string `json:"middleName"`
-	LastName         string `json:"lastName"`
-	Dob              string `json:"dob"`
-	ContactNo        string `json:"contactNo"`
-	EmergencyNo      string `json:"emergencyNo"`
-	PermanentAddress string `json:"permanentAddress"`
-	EmailId          string `json:"mailId"`
-	BloodGroup       int    `json:"bloodGrp"`
-	DocType          string `json:"docType"`
-	HospitalName     string `json:"hospitalName"`
+	Id               string `json:"id"`
+	FirstName        string `json:"firstName,omitempty"`
+	MiddleName       string `json:"middleName,omitempty"`
+	LastName         string `json:"lastName,omitempty"`
+	Dob              string `json:"dob,omitempty"`
+	ContactNo        string `json:"contactNo,omitempty"`
+	EmergencyNo      string `json:"emergencyNo,omitempty"`
+	PermanentAddress string `json:"permanentAddress,omitempty"`
+	EmailId          string `json:"mailId,omitempty"`
+	BloodGroup       string `json:"bloodGrp,omitempty"`
+	DocType          string `json:"docType,omitempty"`
+	Type             string `json:"type,omitempty"` //Employee
+	HospitalId       string `json:"hospitalId"`
 	Active           bool   `json:"active"`
 }
 
-type Doctor struct {
-	Name            string `json:"name"`
-	DocType         string `json:"docType"`
-	HospitalName    string `json:"hospitalName"`
-	Active          bool   `json:"active"`
-	Specialization  string `json:"specialization"`
-	RegistrationNum string `json:"registrationNum"`
+type User struct {
+	Id               string `json:"id"`
+	FirstName        string `json:"firstName,omitempty"`
+	MiddleName       string `json:"middleName,omitempty"`
+	LastName         string `json:"lastName,omitempty"`
+	ContactNo        string `json:"contactNo,omitempty"`
+	EmergencyNo      string `json:"emergencyNo,omitempty"`
+	LocalAddress     string `json:"localAddress,omitempty"`
+	PermanentAddress string `json:"permanentAddress,omitempty"`
+	EmailId          string `json:"mailId,omitempty"`
+	Dob              string `json:"dob,omitempty"`
+	//	Age              int         `json:"age,omitempty"`
+	BloodGroup string      `json:"bloodGrp,omitempty"`
+	HospitalId string      `json:"hospitalId,omitempty"`
+	DocType    string      `json:"docType"`
+	Active     bool        `json:"active,omitempty"`
+	MetaData   interface{} `json:"annexture,omitempty"`
+
+	// Allergies        string `json:"allergies,omitempty"`
+	// Comorbidity      string `json:"comorbidity,omitempty"`
+	// Symptoms         string `json:"symptoms,omitempty"`
+	// CurrentTreatment string `json:"currentTreatment,omitempty"`
 }
 
-type Patient struct {
-	FirstName        string `json:"firstName"`
-	MiddleName       string `json:"middleName"`
-	LastName         string `json:"lastName"`
-	ContactNo        string `json:"contactNo"`
-	EmergencyNo      string `json:"emergencyNo"`
-	LocalAddress     string `json:"localAddress"`
-	PermanentAddress string `json:"permanentAddress"`
-	EmailId          string `json:"mailId"`
-	Dob              string `json:"dob"`
-	Age              int    `json:"age"`
-	BloodGroup       int    `json:"bloodGrp"`
-	Allergies        int    `json:"allergies"`
-	Comorbidity      int    `json:"comorbidity"`
-	Symptoms         int    `json:"symptoms"`
-	CurrentTreatment int    `json:"currentTreatment"`
-	HospitalName     int    `json:"hospitalName"`
-	PersonId         int    `json:"personId"`
-	DocType          string `json:"docType"`
-	Identity         string `json:"identity"`
-	Active           bool   `json:"active"`
+type Medicine struct {
+	Name      string `json:"name"`
+	Dosage    string `json:"dosage"`
+	Frequency string `json:"frequency"`
+	Remarks   string `json:"remarks"`
+}
+
+type Prescription struct {
+	//Date             string    `json:"date"`
+	Timestamp      string     `json:"timestamp,omitempty"`
+	DocType        string     `json:"doctype,omitempty"`
+	DoctorId       string     `json:"doctorId,omitempty"`
+	PatientId      string     `json:"patientId"`
+	Desc           string     `json:"desc"`
+	MedicineRecord []Medicine `json:"medicine"`
 }
 
 func (s *SmartContract) AddHospital(ctx contractapi.TransactionContextInterface, hospitalInputString string) error {
@@ -98,43 +114,14 @@ func (s *SmartContract) AddHospital(ctx contractapi.TransactionContextInterface,
 		return fmt.Errorf("permission denied: only admin can call this function")
 	}
 
-	//Validate input Parameters
-	// if len(strings.TrimSpace(hospitalInput.Name)) == 0 {
-	// 	return fmt.Errorf("Hospital name should not be empty")
-	// }
-	// if hospitalInput.DocType != HOSPITAL {
-	// 	return fmt.Errorf(`Doc Type for hospital should be "HOSPITAL"`)
-	// }
-	// if len(strings.TrimSpace(hospitalInput.Address)) == 0 {
-	// 	return fmt.Errorf("Hospital address should not be empty")
-	// }
-	// if len(strings.TrimSpace(hospitalInput.City)) == 0 {
-	// 	return fmt.Errorf("Hospital city should not be empty")
-	// }
-	// if len(strings.TrimSpace(hospitalInput.Pincode)) == 0 {
-	// 	return fmt.Errorf("Hospital pincode should not be empty")
-	// }
-	// if len(strings.TrimSpace(hospitalInput.RegistrationNum)) == 0 {
-	// 	return fmt.Errorf("Hospital registration num should not be empty")
-	// }
-
 	//Check if hospital is present or not
-	hospitalDetailer, err := getEntityDetails(ctx, hospitalInput.Name)
+	hospitalDetailer, err := getEntityDetails(ctx, hospitalInput.Id, hospitalInput.DocType)
 	if err != nil {
 		return err
 	}
 	if hospitalDetailer != nil {
-		return fmt.Errorf("Hospital already exist with name : %v", hospitalInput.Name)
+		return fmt.Errorf("Hospital already exist with id : %v", hospitalInput.Id)
 	}
-
-	//Check if hospital ID is present or not
-	// hospitalDetail, err := getHospitalDetails(ctx, hospitalInput.Id)
-	// if err != nil {
-	// 	return err
-	// }
-	// if hospitalDetail != nil {
-	// 	return fmt.Errorf("Hospital already exist with ID : %v", hospitalInput.Id)
-	// }
 
 	hospitalBytes, err := json.Marshal(hospitalInput)
 	if err != nil {
@@ -143,7 +130,12 @@ func (s *SmartContract) AddHospital(ctx contractapi.TransactionContextInterface,
 	}
 
 	//Inserting hospital record
-	err = ctx.GetStub().PutState(hospitalInput.Name, hospitalBytes)
+	compositeKey, err := ctx.GetStub().CreateCompositeKey(idDoctypeIndex, []string{hospitalInput.Id, hospitalInput.DocType})
+	if err != nil {
+		return fmt.Errorf("failed to create composite key for hospital %v and err is :%v", hospitalInput.Id, err.Error())
+	}
+
+	err = ctx.GetStub().PutState(compositeKey, hospitalBytes)
 	if err != nil {
 		return fmt.Errorf("failed to insert hospital details to couchDB : %v", err.Error())
 	}
@@ -159,49 +151,30 @@ func (s *SmartContract) AddHospitalAdmin(ctx contractapi.TransactionContextInter
 	}
 	fmt.Println("Input String :", hospitalAdminInput)
 
+	//validating super admin identity
 	superAdminIdentity, err := getUserIdentityName(ctx)
 	fmt.Println("superAdminIdentity :", superAdminIdentity)
-
 	if superAdminIdentity != ADMIN {
 		return fmt.Errorf("permission denied: only admin can call this function")
 	}
 
-	//Validate input Parameters
-	// if len(strings.TrimSpace(hospitalAdminInput.Name)) == 0 {
-	// 	return fmt.Errorf("Admin Name should not be empty")
-	// }
-	// if hospitalAdminInput.DocType != HOSPITAL_ADMIN {
-	// 	return fmt.Errorf(`Doc Type for Asset should be "HOSPITAL_ADMIN"`)
-	// }
-	// if len(strings.TrimSpace(hospitalAdminInput.HospitalName)) == 0 {
-	// 	return fmt.Errorf("Hospital name should not be empty")
-	// }
-
-	//Check if hospital is present or not
-	hospitalDetailer, err := getEntityDetails(ctx, hospitalAdminInput.HospitalName)
+	//Check if hospital id is present or not
+	hospitalDetailer, err := getEntityDetails(ctx, hospitalAdminInput.HospitalId, HOSPITAL)
 	if err != nil {
 		return err
 	}
 	if hospitalDetailer == nil {
-		return fmt.Errorf("Hospital does not exist with name : %v", hospitalAdminInput.HospitalName)
+		return fmt.Errorf("Hospital does not exist with Id : %v", hospitalAdminInput.HospitalId)
 	}
 
 	//Check if hospital admin is present or not
-	hospitalAdminDetailer, err := getEntityDetails(ctx, hospitalAdminInput.Name)
+	hospitalAdminDetailer, err := getEntityDetails(ctx, hospitalAdminInput.Id, hospitalAdminInput.DocType)
 	if err != nil {
 		return err
 	}
 	if hospitalAdminDetailer != nil {
-		return fmt.Errorf("Hospital admin already exist with name : %v", hospitalAdminInput.Name)
+		return fmt.Errorf("Hospital admin already exist with id : %v", hospitalAdminInput.Id)
 	}
-
-	// hospitalDetail, err := getHospitaAdminDetails(ctx, hospitalAdminInput.Name)
-	// if err != nil {
-	// 	return err
-	// }
-	// if hospitalDetail != nil {
-	// 	return fmt.Errorf("Hospital admin already exist with name : %v", hospitalAdminInput.Name)
-	// }
 
 	hospitalAdminBytes, err := json.Marshal(hospitalAdminInput)
 	if err != nil {
@@ -209,7 +182,11 @@ func (s *SmartContract) AddHospitalAdmin(ctx contractapi.TransactionContextInter
 	}
 
 	//Inserting hospital admin record
-	err = ctx.GetStub().PutState(hospitalAdminInput.Name, hospitalAdminBytes)
+	compositeKey, err := ctx.GetStub().CreateCompositeKey(idDoctypeIndex, []string{hospitalAdminInput.Id, hospitalAdminInput.DocType})
+	if err != nil {
+		return fmt.Errorf("failed to create composite key for hospital admin %v and err is :%v", hospitalAdminInput.Id, err.Error())
+	}
+	err = ctx.GetStub().PutState(compositeKey, hospitalAdminBytes)
 	if err != nil {
 		return fmt.Errorf("failed to insert hospital admin details to couchDB : %v", err.Error())
 	}
@@ -217,27 +194,35 @@ func (s *SmartContract) AddHospitalAdmin(ctx contractapi.TransactionContextInter
 	return nil
 }
 
-func (s *SmartContract) AddDocter(ctx contractapi.TransactionContextInterface, docterInputString string) error {
-	var docterInput Doctor
-	err := json.Unmarshal([]byte(docterInputString), &docterInput)
+func (s *SmartContract) AddDoctor(ctx contractapi.TransactionContextInterface, doctorInputString string) error {
+	var doctorInput User
+	err := json.Unmarshal([]byte(doctorInputString), &doctorInput)
 	if err != nil {
 		return fmt.Errorf("Error while doing unmarshal of input string : %v", err.Error())
 	}
-	fmt.Println("Input String :", docterInput)
+	fmt.Println("Input String :", doctorInput)
 
-	hospitalAdminRole, _, err := getCertificateAttributeValue(ctx, "userRole")
-	fmt.Println("Attribute userRole value :", hospitalAdminRole)
-	if hospitalAdminRole != HOSPITAL_ADMIN {
-		return fmt.Errorf("Only Hospital Admin are allowed to register docter")
+	// hospitalAdminRole, _, err := getCertificateAttributeValue(ctx, "userRole")
+	// fmt.Println("Attribute userRole value :", hospitalAdminRole)
+	// if hospitalAdminRole != HOSPITAL_ADMIN {
+	// 	return fmt.Errorf("Only Hospital Admin are allowed to register doctor")
+	// }
+
+	// adminHospitalName, _, err := getCertificateAttributeValue(ctx, "organizationName")
+	// fmt.Println("Attribute organizationName value :", adminHospitalName)
+
+	attributes, err := getAllCertificateAttributes(ctx, []string{"userRole", "organization"})
+	if err != nil {
+		return err
+	}
+	fmt.Println("userRole :", attributes["userRole"])
+	fmt.Println("organization :", attributes["organization"])
+
+	if attributes["userRole"] != HOSPITAL_ADMIN {
+		return fmt.Errorf("Only Hospital Admin are allowed to register doctor")
 	}
 
-	adminHospitalName, _, err := getCertificateAttributeValue(ctx, "organizationName")
-	fmt.Println("Attribute organizationName value :", adminHospitalName)
-	if adminHospitalName != docterInput.HospitalName {
-		return fmt.Errorf("Mismatch hospital name")
-	}
-
-	hospitalAdminMSPOrgId, err := getMSPID(ctx)
+	hospitalAdminMSPOrgId, err := loggedInUserMSPID(ctx)
 	if err != nil {
 		return err
 	}
@@ -246,76 +231,56 @@ func (s *SmartContract) AddDocter(ctx contractapi.TransactionContextInterface, d
 		return fmt.Errorf("OrgMSP Id is different")
 	}
 
-	//Validate input Parameters
-	if len(strings.TrimSpace(docterInput.Name)) == 0 {
-		return fmt.Errorf("Docter Name should not be empty")
-	}
-	if docterInput.DocType != DOCTER {
-		return fmt.Errorf(`Doc Type for Asset should be "DOCTER"`)
-	}
-	if len(strings.TrimSpace(docterInput.HospitalName)) == 0 {
-		return fmt.Errorf("Hospital name should not be empty")
-	}
-	if len(strings.TrimSpace(docterInput.Specialization)) == 0 {
-		return fmt.Errorf("Specialization should not be empty")
-	}
-
-	if len(strings.TrimSpace(docterInput.RegistrationNum)) == 0 {
-		return fmt.Errorf("RegistrationNum num should not be empty")
-	}
-
 	//Check if hospital admin is present or not
-	docterDetailer, err := getHospitalDetails(ctx, docterInput.Name)
+	doctorDetailer, err := getEntityDetails(ctx, doctorInput.Id, doctorInput.DocType)
 	if err != nil {
 		return err
 	}
-	if docterDetailer != nil {
-		return fmt.Errorf("Docter %v is already registered with hospital.", docterInput.Name)
+	if doctorDetailer != nil {
+		return fmt.Errorf("Doctor %v is already registered with hospital.", doctorInput.Id)
 	}
 
-	// docterDetail, err := getDocterDetails(ctx, docterInput.Name)
-	// if err != nil {
-	// 	return err
-	// }
-	// if docterDetail != nil {
-	// 	return fmt.Errorf("Docter %v is already registered with hospital.", docterInput.Name)
-	// }
+	//Assigning Hospital id
+	doctorInput.HospitalId = attributes["organization"]
 
-	docterBytes, err := json.Marshal(docterInput)
+	doctorBytes, err := json.Marshal(doctorInput)
 	if err != nil {
-		return fmt.Errorf("failed to marshal of Docter records : %v", err.Error())
+		return fmt.Errorf("failed to marshal of Doctor records : %v", err.Error())
 	}
 
 	//Inserting hospital admin record
-	err = ctx.GetStub().PutState(docterInput.Name, docterBytes)
+	compositeKey, err := ctx.GetStub().CreateCompositeKey(idDoctypeIndex, []string{doctorInput.Id, doctorInput.DocType})
 	if err != nil {
-		return fmt.Errorf("failed to insert docter details to couchDB : %v", err.Error())
+		return fmt.Errorf("failed to create composite key for hospital doctor %v and err is :%v", doctorInput.Id, err.Error())
+	}
+	err = ctx.GetStub().PutState(compositeKey, doctorBytes)
+	if err != nil {
+		return fmt.Errorf("failed to insert doctor details to couchDB : %v", err.Error())
 	}
 	fmt.Println("****************************")
 	return nil
 }
 
-func (s *SmartContract) AddPatient(ctx contractapi.TransactionContextInterface, patientInputString string) error {
-	var docterInput Doctor
-	err := json.Unmarshal([]byte(patientInputString), &docterInput)
+func (s *SmartContract) AddEntity(ctx contractapi.TransactionContextInterface, entityInputString string) error {
+	var entityInput User
+	err := json.Unmarshal([]byte(entityInputString), &entityInput)
 	if err != nil {
 		return fmt.Errorf("Error while doing unmarshal of input string : %v", err.Error())
 	}
-	fmt.Println("Input String :", docterInput)
+	fmt.Println("Input String :", entityInput)
 
-	hospitalAdminRole, _, err := getCertificateAttributeValue(ctx, "userRole")
-	fmt.Println("Attribute userRole value :", hospitalAdminRole)
-	if hospitalAdminRole != HOSPITAL_ADMIN {
-		return fmt.Errorf("Only Hospital Admin are allowed to register docter")
+	attributes, err := getAllCertificateAttributes(ctx, []string{"userRole", "organization"})
+	if err != nil {
+		return err
+	}
+	fmt.Println("userRole :", attributes["userRole"])
+	fmt.Println("organization :", attributes["organization"])
+
+	if attributes["userRole"] != HOSPITAL_ADMIN {
+		return fmt.Errorf("Only Hospital Admin are allowed to register %v", entityInput.DocType)
 	}
 
-	adminHospitalName, _, err := getCertificateAttributeValue(ctx, "organizationName")
-	fmt.Println("Attribute organizationName value :", adminHospitalName)
-	if adminHospitalName != docterInput.HospitalName {
-		return fmt.Errorf("Mismatch hospital name")
-	}
-
-	hospitalAdminMSPOrgId, err := getMSPID(ctx)
+	hospitalAdminMSPOrgId, err := loggedInUserMSPID(ctx)
 	if err != nil {
 		return err
 	}
@@ -324,73 +289,292 @@ func (s *SmartContract) AddPatient(ctx contractapi.TransactionContextInterface, 
 		return fmt.Errorf("OrgMSP Id is different")
 	}
 
-	//Validate input Parameters
-	if len(strings.TrimSpace(docterInput.Name)) == 0 {
-		return fmt.Errorf("Docter Name should not be empty")
-	}
-	if docterInput.DocType != DOCTER {
-		return fmt.Errorf(`Doc Type for Asset should be "DOCTER"`)
-	}
-	if len(strings.TrimSpace(docterInput.HospitalName)) == 0 {
-		return fmt.Errorf("Hospital name should not be empty")
-	}
-	if len(strings.TrimSpace(docterInput.Specialization)) == 0 {
-		return fmt.Errorf("Specialization should not be empty")
-	}
-
-	if len(strings.TrimSpace(docterInput.RegistrationNum)) == 0 {
-		return fmt.Errorf("RegistrationNum num should not be empty")
-	}
-
-	//Check if hospital admin is present or not
-	docterDetailer, err := getHospitalDetails(ctx, docterInput.Name)
+	//Check if entity is present or not
+	entityDetailer, err := getEntityDetails(ctx, entityInput.Id, entityInput.DocType)
 	if err != nil {
 		return err
 	}
-	if docterDetailer != nil {
-		return fmt.Errorf("Docter %v is already registered with hospital.", docterInput.Name)
+	if entityDetailer != nil {
+		return fmt.Errorf("%v is already registered with hospital.", entityInput.Id)
 	}
 
-	// docterDetail, err := getDocterDetails(ctx, docterInput.Name)
-	// if err != nil {
-	// 	return err
-	// }
-	// if docterDetail != nil {
-	// 	return fmt.Errorf("Docter %v is already registered with hospital.", docterInput.Name)
-	// }
+	//Assigning Hospital id
+	entityInput.HospitalId = attributes["organization"]
 
-	docterBytes, err := json.Marshal(docterInput)
+	entityBytes, err := json.Marshal(entityInput)
 	if err != nil {
-		return fmt.Errorf("failed to marshal of Docter records : %v", err.Error())
+		return fmt.Errorf("failed to marshal of entity records : %v", err.Error())
 	}
 
-	//Inserting hospital admin record
-	err = ctx.GetStub().PutState(docterInput.Name, docterBytes)
+	//Inserting entity record
+	compositeKey, err := ctx.GetStub().CreateCompositeKey(idDoctypeIndex, []string{entityInput.Id, entityInput.DocType})
 	if err != nil {
-		return fmt.Errorf("failed to insert docter details to couchDB : %v", err.Error())
+		return fmt.Errorf("failed to create composite key %v and err is :%v", entityInput.Id, err.Error())
+	}
+	err = ctx.GetStub().PutState(compositeKey, entityBytes)
+	if err != nil {
+		return fmt.Errorf("failed to insert entity details to couchDB : %v", err.Error())
 	}
 	fmt.Println("****************************")
 	return nil
 }
 
-func getHospitalDetails(ctx contractapi.TransactionContextInterface, hospitalId string) (*Hospital, error) {
-	hospitalBytes, err := ctx.GetStub().GetState(hospitalId)
+// Dr may be act as patient in hospital, pass doctype also
+func (s *SmartContract) ViewOwnDetails(ctx contractapi.TransactionContextInterface) (string, error) {
+	// userMSPOrgId, err := loggedInUserMSPID(ctx)
+	// if err != nil {
+	// 	return err
+	// }
+	// fmt.Println("userMSPOrgId :", userMSPOrgId)
+	// if userMSPOrgId != Org2MSP {
+	// 	return fmt.Errorf("OrgMSP Id is different")
+	// }
+
+	userIdentity, err := getUserIdentityName(ctx)
+	fmt.Println("userIdentity :", userIdentity)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to read data from world state %s", err.Error())
+		return "", err
 	}
-	if hospitalBytes == nil {
-		return nil, nil
-	}
-	var hospitalDetail Hospital
-	err = json.Unmarshal(hospitalBytes, &hospitalDetail)
+
+	docType, _, err := getCertificateAttributeValue(ctx, "userRole")
+	fmt.Println("Attribute docType value :", docType)
+
+	//fetching user record from couchDB
+	compositeKey, err := ctx.GetStub().CreateCompositeKey(idDoctypeIndex, []string{userIdentity, docType})
 	if err != nil {
-		return nil, fmt.Errorf("Failed to unmarshal hospital data: %s", err.Error())
+		return "", fmt.Errorf("failed to create composite key for user %v and err is :%v", userIdentity, err.Error())
 	}
-	return &hospitalDetail, nil
+	objectBytes, err := ctx.GetStub().GetState(compositeKey)
+	if err != nil {
+		return "", fmt.Errorf("Failed to read data from world state %s", err.Error())
+	}
+	if objectBytes == nil {
+		return "", fmt.Errorf("Record for %v user does not exist", userIdentity)
+	}
+	fmt.Println("objectBytes : ", string(objectBytes))
+
+	return string(objectBytes), nil
 }
 
-func getEntityDetails(ctx contractapi.TransactionContextInterface, entityId string) (interface{}, error) {
-	objectBytes, err := ctx.GetStub().GetState(entityId)
+func (s *SmartContract) ViewPatientDetails(ctx contractapi.TransactionContextInterface, inputString string) (string, error) {
+	input := struct {
+		ViewerId string `json:"viewerId"`
+		UserId   string `json:"userId"`
+	}{}
+	err := json.Unmarshal([]byte(inputString), &input)
+	if err != nil {
+		return "", fmt.Errorf("Error while doing unmarshal of input string : %v", err.Error())
+	}
+	fmt.Println("Input String :", input)
+
+	//Validate ViewerId attributes
+	drAttributes, err := getAllCertificateAttributes(ctx, []string{"userRole", "organization", "orgRole"})
+	if err != nil {
+		return "", err
+	}
+	fmt.Println("userRole :", drAttributes["userRole"])
+	fmt.Println("organization :", drAttributes["organization"])
+	fmt.Println("orgRole :", drAttributes["orgRole"])
+
+	//fetching user record from couchDB
+	compositeKey, err := ctx.GetStub().CreateCompositeKey(idDoctypeIndex, []string{input.UserId, PATIENT})
+	if err != nil {
+		return "", fmt.Errorf("failed to create composite key for user %v and err is :%v", input.UserId, err.Error())
+	}
+	userBytes, err := ctx.GetStub().GetState(compositeKey)
+	if err != nil {
+		fmt.Println("Failed to read data from world state %s", err.Error())
+		return "", fmt.Errorf("Failed to read data from world state %s", err.Error())
+	}
+	if userBytes == nil {
+		fmt.Println("No Data found")
+		return "", fmt.Errorf("Record for %v patient does not exist", input.UserId)
+	}
+	fmt.Println("userBytes : ", string(userBytes))
+
+	var patientDetail User
+	err = json.Unmarshal(userBytes, &patientDetail)
+	if err != nil {
+		return "", fmt.Errorf("Failed to unmarshal user data: %s", err.Error())
+	}
+	fmt.Println("User Data : ", patientDetail)
+
+	//Validate attributes
+	if drAttributes["organization"] != patientDetail.HospitalId || drAttributes["userRole"] != DOCTOR || patientDetail.DocType != PATIENT {
+		return "", fmt.Errorf("Ony doctor are authorized to see patient data")
+	}
+
+	return string(userBytes), nil
+
+}
+
+func (s *SmartContract) CreatePrescription(ctx contractapi.TransactionContextInterface, prescriptionInputString string) error {
+
+	// prescriptionInput := struct {
+	// 	PatientId        string `json:"patientId"`
+	// 	PrescriptionDesc string `json:"patientDesc"`
+	// 	// MedName          string `json:"medicineName"`
+	// 	// MedQuantity      int    `json:"medicineQuantity"`
+	// 	// MedFrequency     int    `json:"medicineFrequency"`
+	// 	// MedRemarks       string `json:"medicineRemarks"`
+	// 	//MedicineDetails []interface{} `json:"medicineDetails"`
+	// 	MedicineDetails []Medicine `json:"medicineDetails"`
+	// }{}
+	var prescriptionInput Prescription
+	err := json.Unmarshal([]byte(prescriptionInputString), &prescriptionInput)
+	if err != nil {
+		return fmt.Errorf("Error while doing unmarshal of prescription input string : %v", err.Error())
+	}
+	fmt.Println("Input String prescriptionInputString:", prescriptionInputString)
+	//fmt.Println("Input String :", prescriptionInput.MedicineDetails)
+
+	// Convert data to slice of Medicine structs
+	//medicines := make([]Medicine, len(prescriptionInput.MedicineDetails))
+	// var medicines []Medicine
+
+	// for i, medDetail := range prescriptionInput.MedicineDetails {
+	// 	medMap, ok := medDetail.(map[string]interface{})
+	// 	if !ok {
+	// 		fmt.Println("Invalid medicine details format: Record :%v", i+1)
+	// 		return fmt.Errorf("Invalid medicine details format: Record :%v", i+1)
+	// 	}
+	// 	fmt.Println("medMap_%v: %v", i, medMap)
+	// 	medicine := Medicine{
+	// 		Name:      fmt.Sprintf("%v", medMap["name"]),
+	// 		Dosage:    fmt.Sprintf("%v", medMap["dosage"]),
+	// 		Frequency: fmt.Sprintf("%v", medMap["frequency"]),
+	// 		Remarks:   fmt.Sprintf("%v", medMap["remarks"]),
+	// 	}
+
+	// 	medicines = append(medicines, medicine)
+	// }
+	// fmt.Println("medicines :", medicines)
+
+	//Validate doctor attributes
+	doctorIdentity, err := getUserIdentityName(ctx)
+	fmt.Println("doctorIdentity :", doctorIdentity)
+	if err != nil {
+		return err
+	}
+
+	drAttributes, err := getAllCertificateAttributes(ctx, []string{"userRole", "organization", "orgRole"})
+	if err != nil {
+		return err
+	}
+	fmt.Println("userRole :", drAttributes["userRole"])
+	fmt.Println("organization :", drAttributes["organization"])
+	fmt.Println("orgRole :", drAttributes["orgRole"])
+
+	//fetching patient details
+	patientDetailer, err := getEntityDetails(ctx, prescriptionInput.PatientId, PATIENT)
+	if err != nil {
+		return err
+	}
+	if patientDetailer == nil {
+		return fmt.Errorf("%v patient does not registered with hospital.", prescriptionInput.PatientId)
+	}
+
+	var patientDetail User
+	// patientDetail, ok := patientDetailer.(User)
+	// if !ok {
+	// 	return fmt.Errorf("Failed to convert Detailer to User type")
+	// }
+	// fmt.Println("Patient Details :", patientDetail)
+
+	err = json.Unmarshal(patientDetailer.([]byte), &patientDetail)
+	if err != nil {
+		return fmt.Errorf("Failed to unmarshal patient details: %s", err.Error())
+	}
+
+	fmt.Println("Patient Details :", patientDetail)
+	fmt.Println("patientDetail.HospitalId :", patientDetail.HospitalId)
+	fmt.Println("patientDetail.DocType :", patientDetail.DocType)
+
+	//Validate attributes
+	if drAttributes["organization"] != patientDetail.HospitalId || drAttributes["userRole"] != DOCTOR || patientDetail.DocType != PATIENT {
+		return fmt.Errorf("You are not authorized to create prescription")
+	}
+
+	var timestamp time.Time
+	var timestampString string
+	timestamp = time.Now()
+	timestampString = timestamp.Format("January 2, 2006 15:04:05")
+
+	prescriptionInput.Timestamp = timestampString
+	prescriptionInput.DocType = PRESCRIPTION
+	prescriptionInput.DoctorId = doctorIdentity
+
+	// doctorPres := Prescription{
+	// 	//	Date             string    `json:"date"`
+	// 	Timestamp:        timestampString,
+	// 	Doctype:          PRESCRIPTION,
+	// 	DoctorId:         "XXX",
+	// 	PatientId:        prescriptionInput.PatientId,
+	// 	PrescriptionDesc: prescriptionInput.PrescriptionDesc,
+	// 	MedicineRecord:   prescriptionInput.MedicineDetails,
+	// }
+
+	fmt.Println("doctorPres :", prescriptionInput)
+
+	prescriptionBytes, err := json.Marshal(prescriptionInput)
+	if err != nil {
+		return fmt.Errorf("failed to marshal of Patient Prescription records : %v", err.Error())
+
+	}
+	fmt.Println("prescriptionBytes :", string(prescriptionBytes))
+
+	//Inserting prescription record
+	// compositeKey, err := ctx.GetStub().CreateCompositeKey(id_DrId_DoctypeIndex, []string{prescriptionInput.PatientId, doctorIdentity,timestampString, PRESCRIPTION})
+	// if err != nil {
+	// 	return fmt.Errorf("failed to create composite key for prescription for patient %v and err is :%v", prescriptionInput.PatientId, err.Error())
+	// }
+	// fmt.Println("compositeKey :", compositeKey)
+
+	// err = ctx.GetStub().PutState(compositeKey, prescriptionBytes)
+	txID := ctx.GetStub().GetTxID()
+	err = ctx.GetStub().PutState(txID, prescriptionBytes)
+	if err != nil {
+		return fmt.Errorf("failed to insert prescription details to couchDB : %v", err.Error())
+	}
+	fmt.Println("****************************")
+
+	return nil
+
+}
+
+func (s *SmartContract) GetPatientPrescriptionHistory(ctx contractapi.TransactionContextInterface, queryStringInput string) ([]*Prescription, error) {
+	//queryString := fmt.Sprintf(queryStringInput)
+	fmt.Println("queryStringInput : ", queryStringInput)
+	resultsIterator, err := ctx.GetStub().GetQueryResult(queryStringInput)
+	var prescriptions []*Prescription
+
+	if err != nil {
+		return nil, err
+	}
+	defer resultsIterator.Close()
+
+	for resultsIterator.HasNext() {
+		queryResult, err := resultsIterator.Next()
+		if err != nil {
+			return nil, err
+		}
+
+		var prescription Prescription
+		err = json.Unmarshal(queryResult.Value, &prescription)
+		if err != nil {
+			return nil, err
+		}
+		prescriptions = append(prescriptions, &prescription)
+	}
+	return prescriptions, nil
+}
+
+func getEntityDetails(ctx contractapi.TransactionContextInterface, entityId string, docType string) (interface{}, error) {
+	compositeKey, err := ctx.GetStub().CreateCompositeKey(idDoctypeIndex, []string{entityId, docType})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create composite key for hospital %v and err is :%v", entityId, err.Error())
+	}
+	objectBytes, err := ctx.GetStub().GetState(compositeKey)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to read data from world state %s", err.Error())
 	}
@@ -405,39 +589,7 @@ func getEntityDetails(ctx contractapi.TransactionContextInterface, entityId stri
 	return objectBytes, nil
 }
 
-func getHospitaAdminDetails(ctx contractapi.TransactionContextInterface, hospitalAdmin string) (*HospitalAdmin, error) {
-	hospitalAdminBytes, err := ctx.GetStub().GetState(hospitalAdmin)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to read data from world state %s", err.Error())
-	}
-	if hospitalAdminBytes == nil {
-		return nil, nil
-	}
-	var hospitalAdminDetail HospitalAdmin
-	err = json.Unmarshal(hospitalAdminBytes, &hospitalAdminDetail)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to unmarshal hospital data: %s", err.Error())
-	}
-	return &hospitalAdminDetail, nil
-}
-func getDocterDetails(ctx contractapi.TransactionContextInterface, docterName string) (*Doctor, error) {
-	docterBytes, err := ctx.GetStub().GetState(docterName)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to read data from world state %s", err.Error())
-	}
-	if docterBytes == nil {
-		return nil, nil
-	}
-	var doctorDetail Doctor
-	err = json.Unmarshal(docterBytes, &doctorDetail)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to unmarshal docter details: %s", err.Error())
-	}
-	return &doctorDetail, nil
-}
-
 func getUserIdentityName(ctx contractapi.TransactionContextInterface) (string, error) {
-	fmt.Printf("getUserId start-->")
 	b64ID, err := ctx.GetClientIdentity().GetID()
 	if err != nil {
 		return "", fmt.Errorf("Failed to read clientID: %v", err)
@@ -466,7 +618,23 @@ func getCertificateAttributeValue(ctx contractapi.TransactionContextInterface, a
 	return attrValue, found, nil
 }
 
-func getMSPID(ctx contractapi.TransactionContextInterface) (string, error) {
+func getAllCertificateAttributes(ctx contractapi.TransactionContextInterface, attrNames []string) (map[string]string, error) {
+	attributes := make(map[string]string)
+	for _, attrName := range attrNames {
+		attrValue, found, err := ctx.GetClientIdentity().GetAttributeValue(attrName)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to read attrValue for %s: %v", attrName, err)
+		}
+
+		if found {
+			attributes[attrName] = attrValue
+		}
+	}
+
+	return attributes, nil
+}
+
+func loggedInUserMSPID(ctx contractapi.TransactionContextInterface) (string, error) {
 	mspID, err := ctx.GetClientIdentity().GetMSPID()
 	if err != nil {
 		return "", fmt.Errorf("Failed to read mspID: %v", err)

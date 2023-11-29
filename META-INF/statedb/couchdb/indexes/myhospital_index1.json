@@ -1,0 +1,10 @@
+
+{
+    "index":{
+        "fields":["patientId","doctype"]
+    },
+    "ddoc":"index1Doc",
+    "name":"Prescription_index1",
+    "type":"json"
+}
+
