@@ -1,7 +1,7 @@
 
 {
     "index":{
-        "fields":["patientId","doctype","doctorId"] 
+        "fields":["id","docType","doctorId"] 
     },
     "ddoc":"index2Doc",
     "name":"Prescription_index2",

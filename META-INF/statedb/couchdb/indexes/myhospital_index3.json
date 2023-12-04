@@ -1,0 +1,9 @@
+
+{
+    "index":{
+        "fields":["timestamp"] 
+    },
+    "ddoc":"index3Doc",
+    "name":"Prescription_index3",
+    "type":"json"
+}
