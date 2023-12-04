@@ -708,103 +708,101 @@ func (s *SmartContract) AccessRights(ctx contractapi.TransactionContextInterface
 	return returnVar, nil
 }
 
-func (s *SmartContract) GetPrescription(ctx contractapi.TransactionContextInterface, queryStringInput string) (string, error) {
-	fmt.Println("Query String : ", queryStringInput)
+// func (s *SmartContract) GetPrescription(ctx contractapi.TransactionContextInterface, queryStringInput string) (string, error) {
+// 	fmt.Println("Query String : ", queryStringInput)
 
-	//get loggedin userid
-	identity, err := getUserIdentityName(ctx)
-	fmt.Println("identity :", identity)
+// 	//get loggedin userid
+// 	identity, err := getUserIdentityName(ctx)
+// 	fmt.Println("identity :", identity)
 
-	//fetching cerificate attributes of loggedin identity
-	attributes, err := getAllCertificateAttributes(ctx, []string{"userRole", "organization", "orgRole"})
-	if err != nil {
-		return "", err
-	}
-	fmt.Println("userRole 		:", attributes["userRole"])
-	fmt.Println("organization 	:", attributes["organization"])
-	fmt.Println("orgRole 		:", attributes["orgRole"])
+// 	//fetching cerificate attributes of loggedin identity
+// 	attributes, err := getAllCertificateAttributes(ctx, []string{"userRole", "organization", "orgRole"})
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	fmt.Println("userRole 		:", attributes["userRole"])
+// 	fmt.Println("organization 	:", attributes["organization"])
+// 	fmt.Println("orgRole 		:", attributes["orgRole"])
 
-	prescriptionDetails , err := getPrescriptionDetails(ctx,queryStringInput)
+// 	prescriptionDetails , err := getPrescriptionDetails(ctx,queryStringInput)
 
-	/*Check if already granted access or not*/
-	queryString := fmt.Sprintf(`{"selector":{"id":"%s","docType":"ACCESS","$or":[{"doctorId":"%s"},{"doctorId":"%s"}]}}`, identity, attributes, input.ViewerId)
-	fmt.Println("queryString : ", queryString)
-	key, err := isAccessGranted(ctx, queryString)
-	if err != nil {
-		return "", err
-	}
-	fmt.Println("key 		:", key)
-	if key != "nil" {
-		isAccessFlag = true
-	}
+// 	/*Check if already granted access or not*/
+// 	queryString := fmt.Sprintf(`{"selector":{"id":"%s","docType":"ACCESS","$or":[{"doctorId":"%s"},{"doctorId":"%s"}]}}`, identity, attributes, input.ViewerId)
+// 	fmt.Println("queryString : ", queryString)
+// 	key, err := isAccessGranted(ctx, queryString)
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	fmt.Println("key 		:", key)
+// 	if key != "nil" {
+// 		isAccessFlag = true
+// 	}
 
-	resultsIterator, err := ctx.GetStub().GetQueryResult(queryStringInput)
-	if err != nil {
-		return "", err
-	}
-	defer resultsIterator.Close()
+// 	resultsIterator, err := ctx.GetStub().GetQueryResult(queryStringInput)
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	defer resultsIterator.Close()
 
-	if !resultsIterator.HasNext() {
-		fmt.Println(`{ "message" : "No Prescription records found"}`)
-		return "", fmt.Errorf("No Prescription records found")
-	}
+// 	if !resultsIterator.HasNext() {
+// 		fmt.Println(`{ "message" : "No Prescription records found"}`)
+// 		return "", fmt.Errorf("No Prescription records found")
+// 	}
 
-}
+// }
 
+// func (s *SmartContract) getPrescriptionDetails(ctx contractapi.TransactionContextInterface, queryStringInput string) (string, error) {
+// 	fmt.Println("Query String : ", queryStringInput)
+// 	resultsIterator, err := ctx.GetStub().GetQueryResult(queryStringInput)
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	defer resultsIterator.Close()
 
-func (s *SmartContract) getPrescriptionDetails(ctx contractapi.TransactionContextInterface, queryStringInput string) (string, error) {
-	fmt.Println("Query String : ", queryStringInput)
-	resultsIterator, err := ctx.GetStub().GetQueryResult(queryStringInput)
-	if err != nil {
-		return "", err
-	}
-	defer resultsIterator.Close()
+// 	if !resultsIterator.HasNext() {
+// 		fmt.Println(`{ "message" : "No Prescription records found"}`)
+// 		return "", fmt.Errorf("No Prescription records found")
+// 	}
 
-	if !resultsIterator.HasNext() {
-		fmt.Println(`{ "message" : "No Prescription records found"}`)
-		return "", fmt.Errorf("No Prescription records found")
-	}
+// 	// var buffer bytes.Buffer
+// 	// buffer.WriteString("[")
+// 	// var prescriptions []*Prescription
+// 	// fmt.Println("resultsIterator : ", resultsIterator)
+// 	// fmt.Println("resultsIterator.HasNext() - Before : ", resultsIterator.HasNext())
 
-	// var buffer bytes.Buffer
-	// buffer.WriteString("[")
-	// var prescriptions []*Prescription
-	// fmt.Println("resultsIterator : ", resultsIterator)
-	// fmt.Println("resultsIterator.HasNext() - Before : ", resultsIterator.HasNext())
+// 	// bArrayMemberAlreadyWritten := false
+// 	// for resultsIterator.HasNext() {
+// 	// 	queryResult, err := resultsIterator.Next()
+// 	// 	if err != nil {
+// 	// 		return "", err
+// 	// 	}
+// 	// 	if bArrayMemberAlreadyWritten == true {
+// 	// 		buffer.WriteString(",")
+// 	// 	}
+// 	// 	var prescription Prescription
+// 	// 	err = json.Unmarshal(queryResult.Value, &prescription)
+// 	// 	if err != nil {
+// 	// 		return "", err
+// 	// 	}
+// 	// 	fmt.Println("buffer string : ", string(queryResult.Value))
+// 	// 	buffer.WriteString(string(queryResult.Value))
+// 	// 	prescriptions = append(prescriptions, &prescription)
+// 	// 	bArrayMemberAlreadyWritten = true
+// 	// }
+// 	// fmt.Println("resultsIterator.HasNext() - After : ", resultsIterator.HasNext())
+// 	// buffer.WriteString("]")
+// 	// fmt.Println("buffer string : ", buffer.String())
 
-	// bArrayMemberAlreadyWritten := false
-	// for resultsIterator.HasNext() {
-	// 	queryResult, err := resultsIterator.Next()
-	// 	if err != nil {
-	// 		return "", err
-	// 	}
-	// 	if bArrayMemberAlreadyWritten == true {
-	// 		buffer.WriteString(",")
-	// 	}
-	// 	var prescription Prescription
-	// 	err = json.Unmarshal(queryResult.Value, &prescription)
-	// 	if err != nil {
-	// 		return "", err
-	// 	}
-	// 	fmt.Println("buffer string : ", string(queryResult.Value))
-	// 	buffer.WriteString(string(queryResult.Value))
-	// 	prescriptions = append(prescriptions, &prescription)
-	// 	bArrayMemberAlreadyWritten = true
-	// }
-	// fmt.Println("resultsIterator.HasNext() - After : ", resultsIterator.HasNext())
-	// buffer.WriteString("]")
-	// fmt.Println("buffer string : ", buffer.String())
+// 	/******************************/
+// 	prescriptions, err := constructQueryResponseFromIterator(resultsIterator)
+// 	if err != nil {
+// 		return "", err
+// 	}
 
-	/******************************/
-	prescriptions, err := constructQueryResponseFromIterator(resultsIterator)
-	if err != nil {
-		return "", err
-	}
-
-	fmt.Println("********** End of GetPatientPrescriptionHistory Function******************")
-	//return buffer.String(), nil
-	return prescriptions, nil
-}
-
+// 	fmt.Println("********** End of GetPatientPrescriptionHistory Function******************")
+// 	//return buffer.String(), nil
+// 	return prescriptions, nil
+// }
 
 func (s *SmartContract) GetPatientPrescriptionHistory(ctx contractapi.TransactionContextInterface, queryStringInput string) (string, error) {
 	fmt.Println("Query String : ", queryStringInput)
