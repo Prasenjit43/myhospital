@@ -647,10 +647,6 @@ func (s *SmartContract) AccessRights(ctx contractapi.TransactionContextInterface
 	fmt.Println("organization 	:", attributes["organization"])
 	fmt.Println("orgRole 		:", attributes["orgRole"])
 
-	if attributes["userRole"] != PATIENT {
-		return "", fmt.Errorf("Only Patient are allowed to grant/revoke access ")
-	}
-
 	if accessInput.ToUserIdRole == PATIENT {
 		return "", fmt.Errorf("You cannot grant access to Patient ")
 	}
@@ -662,6 +658,18 @@ func (s *SmartContract) AccessRights(ctx contractapi.TransactionContextInterface
 	}
 	if entityDetailer == nil {
 		return "", fmt.Errorf("%v does not registered ", accessInput.ToUserId)
+	}
+
+	var patientDetail User
+	err = json.Unmarshal(entityDetailer.([]byte), &patientDetail)
+	if err != nil {
+		return "", fmt.Errorf("Failed to unmarshal user data: %s", err.Error())
+	}
+	fmt.Println("User Data : ", patientDetail)
+
+	if (attributes["userRole"] != PATIENT || attributes["userRole"] != HOSPITAL_ADMIN) &&
+		patientDetail.HospitalId != attributes["organization"] {
+		return "", fmt.Errorf("Only Patient and Hospital Admins are allowed to grant/revoke access ")
 	}
 
 	/*Check if already granted access or not*/
@@ -804,8 +812,82 @@ func (s *SmartContract) AccessRights(ctx contractapi.TransactionContextInterface
 // }
 
 func (s *SmartContract) GetPatientPrescriptionHistory(ctx contractapi.TransactionContextInterface, queryStringInput string) (string, error) {
-	fmt.Println("Query String : ", queryStringInput)
-	resultsIterator, err := ctx.GetStub().GetQueryResult(queryStringInput)
+	input := struct {
+		Id          string `json:"id"`
+		QueryString string `json:"queryString"`
+	}{}
+	err := json.Unmarshal([]byte(queryStringInput), &input)
+	if err != nil {
+		return "", fmt.Errorf("Error while doing unmarshal of input string : %v", err.Error())
+	}
+	fmt.Println("Input String :", input)
+	fmt.Println("Query String : ", input.QueryString)
+
+	identity, err := getUserIdentityName(ctx)
+	fmt.Println("identity :", identity)
+
+	//Validate ViewerId attributes
+	attributes, err := getAllCertificateAttributes(ctx, []string{"userRole", "organization", "orgRole"})
+	if err != nil {
+		return "", err
+	}
+	fmt.Println("userRole :", attributes["userRole"])
+	fmt.Println("organization :", attributes["organization"])
+	fmt.Println("orgRole :", attributes["orgRole"])
+
+	//validate patient attributes
+	userBytes, err := getEntityDetails(ctx, input.Id, PATIENT)
+	if err != nil {
+		return "", err
+	}
+	if userBytes == nil {
+		return "", fmt.Errorf("Record for %v patient does not exist", input.Id)
+	}
+
+	var patientDetail User
+	err = json.Unmarshal(userBytes.([]byte), &patientDetail)
+	if err != nil {
+		return "", fmt.Errorf("Failed to unmarshal user data: %s", err.Error())
+	}
+	fmt.Println("User Data : ", patientDetail)
+
+	isAccessFlag := false
+	/*Check if already granted access or not*/
+	queryString := fmt.Sprintf(`{"selector":{"id":"%s","docType":"ACCESS","$or":[{"doctorId":"%s"},{"doctorId":"%s"}]}}`, input.Id, attributes["organization"], identity)
+	fmt.Println("access queryString : ", queryString)
+	key, err := isAccessGranted(ctx, queryString)
+	if err != nil {
+		return "", err
+	}
+	fmt.Println("key 		:", key)
+	if key != "nil" {
+		isAccessFlag = true
+	}
+
+	//Validate attributes
+	// if attributes["organization"] != patientDetail.HospitalId ||
+	// 	(attributes["userRole"] != DOCTOR &&
+	// 		attributes["userRole"] != HOSPITAL_ADMIN &&
+	// 		attributes["userRole"] != PATIENT) ||
+	// 	patientDetail.DocType != PATIENT {
+	// 	// return "", fmt.Errorf("Only Doctor, Admins and Patients are authorized to see Prescription details")
+	// 	isAccessFlag = true
+	// }
+
+	if attributes["organization"] == patientDetail.HospitalId &&
+		(attributes["userRole"] == DOCTOR ||
+			attributes["userRole"] == HOSPITAL_ADMIN ||
+			attributes["userRole"] == PATIENT) &&
+		patientDetail.DocType == PATIENT {
+		// return "", fmt.Errorf("Only Doctor, Admins and Patients are authorized to see Prescription details")
+		isAccessFlag = true
+	}
+
+	if !isAccessFlag {
+		return "", fmt.Errorf("You are not authorized to see patient data")
+	}
+
+	resultsIterator, err := ctx.GetStub().GetQueryResult(input.QueryString)
 	if err != nil {
 		return "", err
 	}
@@ -816,43 +898,12 @@ func (s *SmartContract) GetPatientPrescriptionHistory(ctx contractapi.Transactio
 		return "", fmt.Errorf("No Prescription records found")
 	}
 
-	// var buffer bytes.Buffer
-	// buffer.WriteString("[")
-	// var prescriptions []*Prescription
-	// fmt.Println("resultsIterator : ", resultsIterator)
-	// fmt.Println("resultsIterator.HasNext() - Before : ", resultsIterator.HasNext())
-
-	// bArrayMemberAlreadyWritten := false
-	// for resultsIterator.HasNext() {
-	// 	queryResult, err := resultsIterator.Next()
-	// 	if err != nil {
-	// 		return "", err
-	// 	}
-	// 	if bArrayMemberAlreadyWritten == true {
-	// 		buffer.WriteString(",")
-	// 	}
-	// 	var prescription Prescription
-	// 	err = json.Unmarshal(queryResult.Value, &prescription)
-	// 	if err != nil {
-	// 		return "", err
-	// 	}
-	// 	fmt.Println("buffer string : ", string(queryResult.Value))
-	// 	buffer.WriteString(string(queryResult.Value))
-	// 	prescriptions = append(prescriptions, &prescription)
-	// 	bArrayMemberAlreadyWritten = true
-	// }
-	// fmt.Println("resultsIterator.HasNext() - After : ", resultsIterator.HasNext())
-	// buffer.WriteString("]")
-	// fmt.Println("buffer string : ", buffer.String())
-
-	/******************************/
 	prescriptions, err := constructQueryResponseFromIterator(resultsIterator)
 	if err != nil {
 		return "", err
 	}
 
-	fmt.Println("********** End of GetPatientPrescriptionHistory Function******************")
-	//return buffer.String(), nil
+	fmt.Println("********** End of GetPatientPrescriptionHistory Function ******************")
 	return prescriptions, nil
 }
 
@@ -930,6 +981,33 @@ func (s *SmartContract) GetPatientPrescriptionHistory_bkp(ctx contractapi.Transa
 	return prescriptions, nil
 }
 
+func (s *SmartContract) GetAllAccess(ctx contractapi.TransactionContextInterface) (string, error) {
+
+	userIdentity, err := getUserIdentityName(ctx)
+	fmt.Println("userIdentity :", userIdentity)
+	if err != nil {
+		return "", err
+	}
+
+	queryString := fmt.Sprintf(`{"selector":{"docType":"ACCESS","id":"%s"}}`, userIdentity)
+	fmt.Println("access queryString : ", queryString)
+
+	resultsIterator, err := ctx.GetStub().GetQueryResult(queryString)
+	if err != nil {
+		return "", err
+	}
+	defer resultsIterator.Close()
+
+	allAccess, err := constructQueryResponseFromIterator(resultsIterator)
+	if err != nil {
+		return "", err
+	}
+
+	fmt.Println("********** End of GetPatientPrescriptionHistory Function ******************")
+	return allAccess, nil
+
+}
+
 func getQueryResultForQueryStringWithPagination(ctx contractapi.TransactionContextInterface, queryString string, pageSize int32, bookmark string) (string, error) {
 
 	resultsIterator, responseMetadata, err := ctx.GetStub().GetQueryResultWithPagination(queryString, pageSize, bookmark)
@@ -949,36 +1027,13 @@ func getQueryResultForQueryStringWithPagination(ctx contractapi.TransactionConte
 	return prescriptions, nil
 }
 
-// constructQueryResponseFromIterator constructs a slice of assets from the resultsIterator
+// constructQueryResponseFromIterator constructs a slice of data from the resultsIterator
 func constructQueryResponseFromIterator(resultsIterator shim.StateQueryIteratorInterface) (string, error) {
 	var prescriptions []*Prescription
 	var buffer bytes.Buffer
 	buffer.WriteString("[")
-	fmt.Println("resultsIterator : ", resultsIterator)
-	fmt.Println("resultsIterator.HasNext() - Before : ", resultsIterator.HasNext())
+
 	bArrayMemberAlreadyWritten := false
-
-	// for resultsIterator.HasNext() {
-	// 	queryResult, err := resultsIterator.Next()
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-
-	// 	var prescription Prescription
-	// 	err = json.Unmarshal(queryResult.Value, &prescription)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	prescriptions = append(prescriptions, &prescription)
-	// }
-
-	// var buffer bytes.Buffer
-	// buffer.WriteString("[")
-	// var prescriptions []*Prescription
-	// fmt.Println("resultsIterator : ", resultsIterator)
-	// fmt.Println("resultsIterator.HasNext() - Before : ", resultsIterator.HasNext())
-
-	// bArrayMemberAlreadyWritten := false
 	for resultsIterator.HasNext() {
 		queryResult, err := resultsIterator.Next()
 		if err != nil {
@@ -993,12 +1048,11 @@ func constructQueryResponseFromIterator(resultsIterator shim.StateQueryIteratorI
 		if err != nil {
 			return "", err
 		}
-		fmt.Println("buffer string : ", string(queryResult.Value))
+		//fmt.Println("buffer string : ", string(queryResult.Value))
 		buffer.WriteString(string(queryResult.Value))
 		prescriptions = append(prescriptions, &prescription)
 		bArrayMemberAlreadyWritten = true
 	}
-	fmt.Println("resultsIterator.HasNext() - After : ", resultsIterator.HasNext())
 	buffer.WriteString("]")
 	fmt.Println("buffer string : ", buffer.String())
 	return buffer.String(), nil
