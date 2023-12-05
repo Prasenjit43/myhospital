@@ -108,13 +108,14 @@ type Prescription struct {
 }
 
 type Billing struct {
-	//Consultation   int32      `json:"consultation,omitempty"`
-	//Timestamp      int64      `json:"timestamp,omitempty"`
-	DocType string `json:"docType,omitempty"`
-	//DoctorId       string     `json:"doctorId,omitempty"`
-	Id string `json:"id,omitempty"`
-	//Desc           string     `json:"desc,omitempty"`
-	MedicineRecord []Medicine `json:"medicine,omitempty"`
+	Id                   string     `json:"id,omitempty"`
+	DocType              string     `json:"docType,omitempty"`
+	PrescriptionId       string     `json:"prescriptionId,omitempty"`
+	DoctorId             string     `json:"doctorId,omitempty"`
+	HealthcareProviderId string     `json:"healthcareProviderId,omitempty"`
+	TotalBill            int32      `json:"totalBill,omitempty"`
+	Timestamp            int64      `json:"timestamp,omitempty"`
+	MedicineRecord       []Medicine `json:"medicine,omitempty"`
 }
 
 type MedicalRecordAccess struct {
@@ -506,11 +507,11 @@ func (s *SmartContract) CreatePrescription(ctx contractapi.TransactionContextInt
 	fmt.Println("Input String :", prescriptionInput)
 
 	//Validate doctor attributes
-	doctorIdentity, err := getUserIdentityName(ctx)
-	fmt.Println("doctorIdentity :", doctorIdentity)
-	if err != nil {
-		return "", err
-	}
+	// doctorIdentity, err := getUserIdentityName(ctx)
+	// fmt.Println("doctorIdentity :", doctorIdentity)
+	// if err != nil {
+	// 	return "", err
+	// }
 
 	drAttributes, err := getAllCertificateAttributes(ctx, []string{"userRole", "organization", "orgRole"})
 	if err != nil {
@@ -541,18 +542,10 @@ func (s *SmartContract) CreatePrescription(ctx contractapi.TransactionContextInt
 		return "", fmt.Errorf("You are not authorized to create prescription")
 	}
 
-	//Generating timestamp and formatting
-	// var timestamp time.Time
-	// var timestampString string
-	// timestamp = time.Now()
-	// timestampString = timestamp.Format("January 2, 2006 15:04:05")
+	//prescriptionInput.DocType = PRESCRIPTION
+	//prescriptionInput.DoctorId = doctorIdentity
 
-	// //assigning prescription attributes
-	// prescriptionInput.Timestamp = timestampString
-	prescriptionInput.DocType = PRESCRIPTION
-	prescriptionInput.DoctorId = doctorIdentity
-
-	fmt.Println("Final Prescription Details :", prescriptionInput)
+	//fmt.Println("Final Prescription Details :", prescriptionInput)
 
 	prescriptionBytes, err := json.Marshal(prescriptionInput)
 	if err != nil {
@@ -560,70 +553,76 @@ func (s *SmartContract) CreatePrescription(ctx contractapi.TransactionContextInt
 	}
 	fmt.Println("prescriptionBytes :", string(prescriptionBytes))
 
-	//Inserting prescription record
-	// compositeKey, err := ctx.GetStub().CreateCompositeKey(id_DrId_DoctypeIndex, []string{prescriptionInput.PatientId, doctorIdentity,timestampString, PRESCRIPTION})
-	// if err != nil {
-	// 	return fmt.Errorf("failed to create composite key for prescription for patient %v and err is :%v", prescriptionInput.PatientId, err.Error())
-	// }
-	// err = ctx.GetStub().PutState(compositeKey, prescriptionBytes)
 	txID := ctx.GetStub().GetTxID()
 	err = ctx.GetStub().PutState(txID, prescriptionBytes)
 	if err != nil {
 		return "", fmt.Errorf("failed to insert prescription details to couchDB : %v", err.Error())
 	}
-	fmt.Println("********** End of CreatePrescription Function******************")
+	fmt.Println("********** End of CreatePrescription Function ******************")
 	return txID, nil
 }
 
-// func (s *SmartContract) GenerateBill(ctx contractapi.TransactionContextInterface, billingInputString string) error {
-// 	billingInput := struct {
-// 		Id string `json:"id,omitempty"`
+func (s *SmartContract) GenerateBill(ctx contractapi.TransactionContextInterface, billingInputString string) (string, error) {
+	var billingInput Billing
+	err := json.Unmarshal([]byte(billingInputString), &billingInput)
+	if err != nil {
+		return "", fmt.Errorf("Error while doing unmarshal of billing input string : %v", err.Error())
+	}
+	fmt.Println("Input String :", billingInput)
 
-// 	}{}
-// 	err := json.Unmarshal([]byte(prescriptionInputString), &prescriptionInput)
-// 	if err != nil {
-// 		return "", fmt.Errorf("Error while doing unmarshal of prescription input string : %v", err.Error())
-// 	}
-// 	fmt.Println("Input String :", prescriptionInput)
+	//fetching cerificate attributes
+	attributes, err := getAllCertificateAttributes(ctx, []string{"userRole", "organization"})
+	if err != nil {
+		return "", err
+	}
+	fmt.Println("userRole :", attributes["userRole"])
+	fmt.Println("organization :", attributes["organization"])
 
-// 	//fetching cerificate attributes
-// 	attributes, err := getAllCertificateAttributes(ctx, []string{"userRole", "organization"})
-// 	if err != nil {
-// 		return err
-// 	}
-// 	fmt.Println("userRole :", attributes["userRole"])
-// 	fmt.Println("organization :", attributes["organization"])
+	if attributes["userRole"] != DRUGGIST && attributes["userRole"] != PATHOLOGIST {
+		return "", fmt.Errorf("Only Druggist and Pathologist are allowed to generate bill ")
+	}
 
-// 	if attributes["userRole"] != DRUGGIST {
-// 		return fmt.Errorf("Only Druggist Admin are allowed to generate bill ")
-// 	}
+	//Check if healthcareProvider is present or not
+	entityDetailer, err := getEntityDetails(ctx, billingInput.HealthcareProviderId, attributes["userRole"])
+	if err != nil {
+		return "", err
+	}
+	if entityDetailer == nil {
+		return "", fmt.Errorf("%v does not exist ", billingInput.HealthcareProviderId)
+	}
 
-// 	identity, err := getUserIdentityName(ctx)
-// 	fmt.Println("identity :", identity)
-// 	if identity != DRUGGIST {
-// 		return fmt.Errorf("permission denied: only DRUGGIST can call this function")
-// 	}
+	//Check if prescription is present or not
+	objectBytes, err := ctx.GetStub().GetState(billingInput.PrescriptionId)
+	if err != nil {
+		return "", fmt.Errorf("Failed to read data from world state %s", err.Error())
+	}
+	if objectBytes == nil {
+		return "", fmt.Errorf("Prescription with %v does not exist", billingInput.PrescriptionId)
+	}
 
-// 	//Check if druggist is present or not
-// 	entityDetailer, err := getEntityDetails(ctx, identity, DRUGGIST)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	if entityDetailer == nil {
-// 		return fmt.Errorf("%v does not registered with hospital.", identity)
-// 	}
+	//Check if patient is present or not
+	entityDetailer, err = getEntityDetails(ctx, billingInput.Id, PATIENT)
+	if err != nil {
+		return "", err
+	}
+	if entityDetailer == nil {
+		return "", fmt.Errorf("Patient with %v does not exist", billingInput.Id)
+	}
 
-// 	//Check if prescription is present or not
-// 	entityDetailer, err = getEntityDetails(ctx, prescriptionId, PRESCRIPTION)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	if entityDetailer == nil {
-// 		return fmt.Errorf("Prescription with %v does not exist", prescriptionId)
-// 	}
+	billingBytes, err := json.Marshal(billingInput)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal of Patient billing records : %v", err.Error())
+	}
+	fmt.Println("billingBytes :", string(billingBytes))
 
-// 	return nil
-// }
+	txID := ctx.GetStub().GetTxID()
+	err = ctx.GetStub().PutState(txID, billingBytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to insert billing details to couchDB : %v", err.Error())
+	}
+	fmt.Println("********** End of GenerateBill Function ******************")
+	return txID, nil
+}
 
 func (s *SmartContract) AccessRights(ctx contractapi.TransactionContextInterface, accessInputString string) (string, error) {
 	accessInput := struct {
