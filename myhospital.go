@@ -21,6 +21,7 @@ const HOSPITAL_ADMIN = "HOSPITAL_ADMIN"
 const DRUGGIST = "DRUGGIST"
 const PATHOLOGIST = "PATHOLOGIST"
 const ACCESS = "ACCESS"
+const BILLING = "BILLING"
 
 const ADMIN = "admin"
 const DOCTOR = "DOCTOR"
@@ -29,6 +30,8 @@ const Org2MSP = "Org2MSP"
 const PRESCRIPTION = "PRESCRIPTION"
 
 const idDoctypeIndex = "id~doctype"
+const EQUAL_TO_NIL = "EQUAL_TO_NIL"
+const NOT_EQUAL_TO_NIL = "NOT_EQUAL_TO_NIL"
 
 //const id_DrId_DoctypeIndex = "id~drId~doctype"
 
@@ -124,6 +127,30 @@ type MedicalRecordAccess struct {
 	DocType  string `json:"docType,omitempty"`
 }
 
+func validateEntities(ctx contractapi.TransactionContextInterface, params [][]string) error {
+	for i := 0; i < len(params); i++ {
+		id := params[i][0]
+		docType := params[i][1]
+		checkType := params[i][2]
+
+		entityDetailer, err := getEntityDetails(ctx, id, docType)
+		if err != nil {
+			return err
+		}
+
+		if checkType == NOT_EQUAL_TO_NIL {
+			if entityDetailer != nil {
+				return fmt.Errorf("%s already exist with id : %v", docType, id)
+			}
+		} else {
+			if entityDetailer == nil {
+				return fmt.Errorf("%s does not exist with id : %v", docType, id)
+			}
+		}
+	}
+	return nil
+}
+
 func (s *SmartContract) AddHospital(ctx contractapi.TransactionContextInterface, hospitalInputString string) error {
 	var hospitalInput Hospital
 	err := json.Unmarshal([]byte(hospitalInputString), &hospitalInput)
@@ -139,20 +166,29 @@ func (s *SmartContract) AddHospital(ctx contractapi.TransactionContextInterface,
 		return fmt.Errorf("permission denied: only super admin can call this function")
 	}
 
-	//Check if hospital is present or not
-	hospitalDetailer, err := getEntityDetails(ctx, hospitalInput.Id, hospitalInput.DocType)
+	/*Testing*/
+	params := [][]string{
+		{hospitalInput.Id, hospitalInput.DocType, NOT_EQUAL_TO_NIL},
+	}
+	err = validateEntities(ctx, params)
+	fmt.Println("validateEntities status:", err)
 	if err != nil {
 		return err
 	}
-	if hospitalDetailer != nil {
-		return fmt.Errorf("Hospital already exist with id : %v", hospitalInput.Id)
-	}
+
+	//Check if hospital is present or not
+	// hospitalDetailer, err := getEntityDetails(ctx, hospitalInput.Id, hospitalInput.DocType)
+	// if err != nil {
+	// 	return err
+	// }
+	// if hospitalDetailer != nil {
+	// 	return fmt.Errorf("Hospital already exist with id : %v", hospitalInput.Id)
+	// }
 
 	//Inserting hospital record
 	hospitalBytes, err := json.Marshal(hospitalInput)
 	if err != nil {
 		return fmt.Errorf("failed to marshal of Hospital record : %v", err.Error())
-
 	}
 
 	compositeKey, err := ctx.GetStub().CreateCompositeKey(idDoctypeIndex, []string{hospitalInput.Id, hospitalInput.DocType})
@@ -182,22 +218,32 @@ func (s *SmartContract) AddHospitalAdmin(ctx contractapi.TransactionContextInter
 		return fmt.Errorf("permission denied: only super admin can call this function")
 	}
 
-	//Check if hospital id is present or not
-	hospitalDetailer, err := getEntityDetails(ctx, hospitalAdminInput.HospitalId, HOSPITAL)
-	if err != nil {
-		return err
-	}
-	if hospitalDetailer == nil {
-		return fmt.Errorf("Hospital does not exist with Id : %v", hospitalAdminInput.HospitalId)
-	}
+	// //Check if hospital id is present or not
+	// hospitalDetailer, err := getEntityDetails(ctx, hospitalAdminInput.HospitalId, HOSPITAL)
+	// if err != nil {
+	// 	return err
+	// }
+	// if hospitalDetailer == nil {
+	// 	return fmt.Errorf("Hospital does not exist with Id : %v", hospitalAdminInput.HospitalId)
+	// }
 
-	//Check if hospital admin is present or not
-	hospitalAdminDetailer, err := getEntityDetails(ctx, hospitalAdminInput.Id, hospitalAdminInput.DocType)
+	// //Check if hospital admin is present or not
+	// hospitalAdminDetailer, err := getEntityDetails(ctx, hospitalAdminInput.Id, hospitalAdminInput.DocType)
+	// if err != nil {
+	// 	return err
+	// }
+	// if hospitalAdminDetailer != nil {
+	// 	return fmt.Errorf("Hospital admin already exist with id : %v", hospitalAdminInput.Id)
+	// }
+
+	params := [][]string{
+		{hospitalAdminInput.HospitalId, HOSPITAL, EQUAL_TO_NIL},
+		{hospitalAdminInput.Id, hospitalAdminInput.DocType, NOT_EQUAL_TO_NIL},
+	}
+	err = validateEntities(ctx, params)
+	fmt.Println("validateEntities status:", err)
 	if err != nil {
 		return err
-	}
-	if hospitalAdminDetailer != nil {
-		return fmt.Errorf("Hospital admin already exist with id : %v", hospitalAdminInput.Id)
 	}
 
 	//Inserting hospital admin record
@@ -238,33 +284,33 @@ func (s *SmartContract) AddEntity(ctx contractapi.TransactionContextInterface, e
 		return fmt.Errorf("Only Hospital Admin are allowed to register %v", entityInput.DocType)
 	}
 
-	// hospitalAdminMSPOrgId, err := loggedInUserMSPID(ctx)
+	//Check if entity-id is present or not
+	// entityDetailer, err := getEntityDetails(ctx, entityInput.Id, entityInput.DocType)
 	// if err != nil {
 	// 	return err
 	// }
-	// fmt.Println("hospitalAdminMSPOrgId :", hospitalAdminMSPOrgId)
-	// if hospitalAdminMSPOrgId != Org1MSP {
-	// 	return fmt.Errorf("OrgMSP Id is different")
+	// if entityDetailer != nil {
+	// 	return fmt.Errorf("%v is already registered with hospital.", entityInput.Id)
 	// }
 
-	//Check if entity-id is present or not
-	entityDetailer, err := getEntityDetails(ctx, entityInput.Id, entityInput.DocType)
+	params := [][]string{
+		{entityInput.Id, entityInput.DocType, NOT_EQUAL_TO_NIL},
+	}
+	err = validateEntities(ctx, params)
+	fmt.Println("validateEntities status:", err)
 	if err != nil {
 		return err
-	}
-	if entityDetailer != nil {
-		return fmt.Errorf("%v is already registered with hospital.", entityInput.Id)
 	}
 
 	//Assigning Hospital id
 	entityInput.HospitalId = attributes["organization"]
 
+	//Inserting entity record
 	entityBytes, err := json.Marshal(entityInput)
 	if err != nil {
 		return fmt.Errorf("failed to marshal of entity records : %v", err.Error())
 	}
 
-	//Inserting entity record
 	compositeKey, err := ctx.GetStub().CreateCompositeKey(idDoctypeIndex, []string{entityInput.Id, entityInput.DocType})
 	if err != nil {
 		return fmt.Errorf("failed to create composite key for %v and err is :%v", entityInput.Id, err.Error())
@@ -285,22 +331,32 @@ func (s *SmartContract) SelfRegistration(ctx contractapi.TransactionContextInter
 	}
 	fmt.Println("Input String :", entityInput)
 
-	//Check if hospital is present or not
-	hospitalDetailer, err := getEntityDetails(ctx, entityInput.HospitalId, HOSPITAL)
-	if err != nil {
-		return err
-	}
-	if hospitalDetailer == nil {
-		return fmt.Errorf("Hospital does not exist with Id : %v", entityInput.HospitalId)
-	}
+	// //Check if hospital is present or not
+	// hospitalDetailer, err := getEntityDetails(ctx, entityInput.HospitalId, HOSPITAL)
+	// if err != nil {
+	// 	return err
+	// }
+	// if hospitalDetailer == nil {
+	// 	return fmt.Errorf("Hospital does not exist with Id : %v", entityInput.HospitalId)
+	// }
 
-	//Check if patient-id is present or not
-	entityDetailer, err := getEntityDetails(ctx, entityInput.Id, entityInput.DocType)
+	// //Check if patient-id is present or not
+	// entityDetailer, err := getEntityDetails(ctx, entityInput.Id, entityInput.DocType)
+	// if err != nil {
+	// 	return err
+	// }
+	// if entityDetailer != nil {
+	// 	return fmt.Errorf("%v is already registered with hospital.", entityInput.Id)
+	// }
+
+	params := [][]string{
+		{entityInput.HospitalId, HOSPITAL, EQUAL_TO_NIL},
+		{entityInput.Id, entityInput.DocType, NOT_EQUAL_TO_NIL},
+	}
+	err = validateEntities(ctx, params)
+	fmt.Println("validateEntities status:", err)
 	if err != nil {
 		return err
-	}
-	if entityDetailer != nil {
-		return fmt.Errorf("%v is already registered with hospital.", entityInput.Id)
 	}
 
 	//Inserting entity record
@@ -322,28 +378,39 @@ func (s *SmartContract) SelfRegistration(ctx contractapi.TransactionContextInter
 }
 
 // Dr may be act as patient in hospital, pass doctype also
-func (s *SmartContract) ViewOwnDetails(ctx contractapi.TransactionContextInterface) (string, error) {
+func (s *SmartContract) ViewOwnDetails(ctx contractapi.TransactionContextInterface) (interface{}, error) {
 
 	userIdentity, err := getUserIdentityName(ctx)
 	fmt.Println("userIdentity :", userIdentity)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	docType, _, err := getCertificateAttributeValue(ctx, "userRole")
-	fmt.Println("Attribute docType value :", docType)
+	// docType, _, err := getCertificateAttributeValue(ctx, "userRole")
+	// fmt.Println("Attribute docType value :", docType)
+
+	attributes, err := getAllCertificateAttributes(ctx, []string{"userRole"})
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println("userRole :", attributes["userRole"])
 
 	//Check if entity Id is present or not
-	objectBytes, err := getEntityDetails(ctx, userIdentity, docType)
+	userDetailer, err := getEntityDetails(ctx, userIdentity, attributes["userRole"])
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	if objectBytes == nil {
-		return "", fmt.Errorf("Record for %v user does not exist", userIdentity)
+	if userDetailer == nil {
+		return nil, fmt.Errorf("Record for %v user does not exist", userIdentity)
 	}
 
-	fmt.Println("********** End of ViewOwnDetails Function******************")
-	return string(objectBytes.([]byte)), nil
+	// userData, ok := userDetailer.(User)
+	// if !ok {
+	// 	return nil, fmt.Errorf("Failed to convert Detailer to User type")
+	// }
+
+	fmt.Println("********** End of ViewOwnDetails Function ******************")
+	return string(userDetailer.([]byte)), nil
 }
 
 func (s *SmartContract) ViewPatientDetails(ctx contractapi.TransactionContextInterface, inputString string) (string, error) {
@@ -351,7 +418,6 @@ func (s *SmartContract) ViewPatientDetails(ctx contractapi.TransactionContextInt
 		ViewerId string `json:"viewerId"`
 		UserId   string `json:"userId"`
 	}{}
-
 	err := json.Unmarshal([]byte(inputString), &input)
 	if err != nil {
 		return "", fmt.Errorf("Error while doing unmarshal of input string : %v", err.Error())
@@ -359,13 +425,12 @@ func (s *SmartContract) ViewPatientDetails(ctx contractapi.TransactionContextInt
 	fmt.Println("Input String :", input)
 
 	//Validate ViewerId attributes
-	drAttributes, err := getAllCertificateAttributes(ctx, []string{"userRole", "organization", "orgRole"})
+	drAttributes, err := getAllCertificateAttributes(ctx, []string{"userRole", "organization"})
 	if err != nil {
 		return "", err
 	}
 	fmt.Println("userRole :", drAttributes["userRole"])
 	fmt.Println("organization :", drAttributes["organization"])
-	fmt.Println("orgRole :", drAttributes["orgRole"])
 
 	userBytes, err := getEntityDetails(ctx, input.UserId, PATIENT)
 	if err != nil {
@@ -383,11 +448,12 @@ func (s *SmartContract) ViewPatientDetails(ctx contractapi.TransactionContextInt
 	fmt.Println("User Data : ", patientDetail)
 
 	//Validate attributes
-	if drAttributes["organization"] != patientDetail.HospitalId || (drAttributes["userRole"] != DOCTOR && drAttributes["userRole"] != HOSPITAL_ADMIN) || patientDetail.DocType != PATIENT {
-		return "", fmt.Errorf("Ony doctor are authorized to see patient data")
+	if drAttributes["organization"] != patientDetail.HospitalId ||
+		(drAttributes["userRole"] != DOCTOR && drAttributes["userRole"] != HOSPITAL_ADMIN) ||
+		patientDetail.DocType != PATIENT {
+		return "", fmt.Errorf("You are not Authorized see patient data")
 	}
 
-	/**/
 	queryString := fmt.Sprintf(`{"selector":{"id":"%s","docType":"PRESCRIPTION"},"sort":[{"timestamp":"desc"}],"limit":3}`, patientDetail.Id)
 	last3PrescriptionDetails, err := s.GetPatientPrescriptionHistory(ctx, queryString)
 	fmt.Println("last3PrescriptionDetails : ", last3PrescriptionDetails)
@@ -415,7 +481,6 @@ func (s *SmartContract) ViewPatientDetailsByOtherEntity(ctx contractapi.Transact
 		ViewerId string `json:"viewerId"`
 		UserId   string `json:"userId"`
 	}{}
-
 	err := json.Unmarshal([]byte(inputString), &input)
 	if err != nil {
 		return "", fmt.Errorf("Error while doing unmarshal of input string : %v", err.Error())
@@ -423,13 +488,12 @@ func (s *SmartContract) ViewPatientDetailsByOtherEntity(ctx contractapi.Transact
 	fmt.Println("Input String :", input)
 
 	//Validate ViewerId attributes
-	drAttributes, err := getAllCertificateAttributes(ctx, []string{"userRole", "organization", "orgRole"})
+	drAttributes, err := getAllCertificateAttributes(ctx, []string{"userRole", "organization"})
 	if err != nil {
 		return "", err
 	}
 	fmt.Println("userRole :", drAttributes["userRole"])
 	fmt.Println("organization :", drAttributes["organization"])
-	fmt.Println("orgRole :", drAttributes["orgRole"])
 
 	//Validate patient id
 	userBytes, err := getEntityDetails(ctx, input.UserId, PATIENT)
@@ -451,16 +515,18 @@ func (s *SmartContract) ViewPatientDetailsByOtherEntity(ctx contractapi.Transact
 	/*Check if already granted access or not*/
 	queryString := fmt.Sprintf(`{"selector":{"id":"%s","docType":"ACCESS","$or":[{"doctorId":"%s"},{"doctorId":"%s"}]}}`, input.UserId, drAttributes["organization"], input.ViewerId)
 	fmt.Println("queryString : ", queryString)
+
 	key, err := isAccessGranted(ctx, queryString)
+	fmt.Println("key 		:", key)
 	if err != nil {
 		return "", err
 	}
-	fmt.Println("key 		:", key)
 	if key != "nil" {
 		isAccessFlag = true
 	}
 
-	if !isAccessFlag && drAttributes["organization"] == patientDetail.HospitalId && (drAttributes["userRole"] == DOCTOR || drAttributes["userRole"] == HOSPITAL_ADMIN) {
+	if !isAccessFlag && drAttributes["organization"] == patientDetail.HospitalId &&
+		(drAttributes["userRole"] == DOCTOR || drAttributes["userRole"] == HOSPITAL_ADMIN) {
 		isAccessFlag = true
 	}
 
@@ -468,16 +534,12 @@ func (s *SmartContract) ViewPatientDetailsByOtherEntity(ctx contractapi.Transact
 		return "", fmt.Errorf("You are not authorized to see patient data")
 	}
 
-	//queryString = fmt.Sprintf(`{"selector":{"id":"%s","docType":"PRESCRIPTION"},"sort":[{"timestamp":"desc"}],"limit":3}`, patientDetail.Id)
 	queryString = fmt.Sprintf(`{"selector":{"id":"%s","docType":"PRESCRIPTION"},"sort":[{"timestamp":"desc"}]}`, patientDetail.Id)
 	fmt.Println("last3PrescriptionDetails queryString : ", queryString)
-	//last3PrescriptionDetails, err := s.GetPatientPrescriptionHistory(ctx, queryString)
-	// fmt.Println("last3PrescriptionDetails : ", last3PrescriptionDetails)
 	last3PrescriptionDetails, err := getQueryResultForQueryStringWithPagination(ctx, queryString, 3, "")
 	if err != nil {
 		return "", err
 	}
-
 	fmt.Println("last3PrescriptionDetails err : ", last3PrescriptionDetails)
 
 	/*****************************************/
@@ -493,7 +555,7 @@ func (s *SmartContract) ViewPatientDetailsByOtherEntity(ctx contractapi.Transact
 	buffer.WriteString(last3PrescriptionDetails)
 	buffer.WriteString("}")
 	fmt.Println("buffer string : ", buffer.String())
-	fmt.Println("********** End of ViewPatientDetails Function ******************")
+	fmt.Println("********** End of ViewPatientDetailsByOtherEntity Function ******************")
 	return buffer.String(), nil
 
 }
@@ -506,20 +568,12 @@ func (s *SmartContract) CreatePrescription(ctx contractapi.TransactionContextInt
 	}
 	fmt.Println("Input String :", prescriptionInput)
 
-	//Validate doctor attributes
-	// doctorIdentity, err := getUserIdentityName(ctx)
-	// fmt.Println("doctorIdentity :", doctorIdentity)
-	// if err != nil {
-	// 	return "", err
-	// }
-
 	drAttributes, err := getAllCertificateAttributes(ctx, []string{"userRole", "organization", "orgRole"})
 	if err != nil {
 		return "", err
 	}
 	fmt.Println("userRole 		:", drAttributes["userRole"])
 	fmt.Println("organization 	:", drAttributes["organization"])
-	fmt.Println("orgRole 		:", drAttributes["orgRole"])
 
 	//fetching patient details
 	patientDetailer, err := getEntityDetails(ctx, prescriptionInput.Id, PATIENT)
@@ -538,13 +592,14 @@ func (s *SmartContract) CreatePrescription(ctx contractapi.TransactionContextInt
 	fmt.Println("Patient Details 			:", patientDetail)
 
 	//Validate attributes
-	if drAttributes["organization"] != patientDetail.HospitalId || drAttributes["userRole"] != DOCTOR || patientDetail.DocType != PATIENT {
+	if drAttributes["organization"] != patientDetail.HospitalId ||
+		drAttributes["userRole"] != DOCTOR ||
+		patientDetail.DocType != PATIENT {
 		return "", fmt.Errorf("You are not authorized to create prescription")
 	}
 
 	//prescriptionInput.DocType = PRESCRIPTION
 	//prescriptionInput.DoctorId = doctorIdentity
-
 	//fmt.Println("Final Prescription Details :", prescriptionInput)
 
 	prescriptionBytes, err := json.Marshal(prescriptionInput)
@@ -645,7 +700,6 @@ func (s *SmartContract) AccessRights(ctx contractapi.TransactionContextInterface
 	}
 	fmt.Println("userRole 		:", attributes["userRole"])
 	fmt.Println("organization 	:", attributes["organization"])
-	fmt.Println("orgRole 		:", attributes["orgRole"])
 
 	if accessInput.ToUserIdRole == PATIENT {
 		return "", fmt.Errorf("You cannot grant access to Patient ")
@@ -675,10 +729,10 @@ func (s *SmartContract) AccessRights(ctx contractapi.TransactionContextInterface
 	/*Check if already granted access or not*/
 	queryString := fmt.Sprintf(`{"selector":{"id":"%v","docType":"ACCESS","doctorId":"%v"}}`, accessInput.FromUserId, accessInput.ToUserId)
 	key, err := isAccessGranted(ctx, queryString)
+	fmt.Println("key :", key)
 	if err != nil {
 		return "", err
 	}
-	fmt.Println("key 		:", key)
 
 	var returnVar string
 	//Inserting new access record
@@ -715,102 +769,6 @@ func (s *SmartContract) AccessRights(ctx contractapi.TransactionContextInterface
 	return returnVar, nil
 }
 
-// func (s *SmartContract) GetPrescription(ctx contractapi.TransactionContextInterface, queryStringInput string) (string, error) {
-// 	fmt.Println("Query String : ", queryStringInput)
-
-// 	//get loggedin userid
-// 	identity, err := getUserIdentityName(ctx)
-// 	fmt.Println("identity :", identity)
-
-// 	//fetching cerificate attributes of loggedin identity
-// 	attributes, err := getAllCertificateAttributes(ctx, []string{"userRole", "organization", "orgRole"})
-// 	if err != nil {
-// 		return "", err
-// 	}
-// 	fmt.Println("userRole 		:", attributes["userRole"])
-// 	fmt.Println("organization 	:", attributes["organization"])
-// 	fmt.Println("orgRole 		:", attributes["orgRole"])
-
-// 	prescriptionDetails , err := getPrescriptionDetails(ctx,queryStringInput)
-
-// 	/*Check if already granted access or not*/
-// 	queryString := fmt.Sprintf(`{"selector":{"id":"%s","docType":"ACCESS","$or":[{"doctorId":"%s"},{"doctorId":"%s"}]}}`, identity, attributes, input.ViewerId)
-// 	fmt.Println("queryString : ", queryString)
-// 	key, err := isAccessGranted(ctx, queryString)
-// 	if err != nil {
-// 		return "", err
-// 	}
-// 	fmt.Println("key 		:", key)
-// 	if key != "nil" {
-// 		isAccessFlag = true
-// 	}
-
-// 	resultsIterator, err := ctx.GetStub().GetQueryResult(queryStringInput)
-// 	if err != nil {
-// 		return "", err
-// 	}
-// 	defer resultsIterator.Close()
-
-// 	if !resultsIterator.HasNext() {
-// 		fmt.Println(`{ "message" : "No Prescription records found"}`)
-// 		return "", fmt.Errorf("No Prescription records found")
-// 	}
-
-// }
-
-// func (s *SmartContract) getPrescriptionDetails(ctx contractapi.TransactionContextInterface, queryStringInput string) (string, error) {
-// 	fmt.Println("Query String : ", queryStringInput)
-// 	resultsIterator, err := ctx.GetStub().GetQueryResult(queryStringInput)
-// 	if err != nil {
-// 		return "", err
-// 	}
-// 	defer resultsIterator.Close()
-
-// 	if !resultsIterator.HasNext() {
-// 		fmt.Println(`{ "message" : "No Prescription records found"}`)
-// 		return "", fmt.Errorf("No Prescription records found")
-// 	}
-
-// 	// var buffer bytes.Buffer
-// 	// buffer.WriteString("[")
-// 	// var prescriptions []*Prescription
-// 	// fmt.Println("resultsIterator : ", resultsIterator)
-// 	// fmt.Println("resultsIterator.HasNext() - Before : ", resultsIterator.HasNext())
-
-// 	// bArrayMemberAlreadyWritten := false
-// 	// for resultsIterator.HasNext() {
-// 	// 	queryResult, err := resultsIterator.Next()
-// 	// 	if err != nil {
-// 	// 		return "", err
-// 	// 	}
-// 	// 	if bArrayMemberAlreadyWritten == true {
-// 	// 		buffer.WriteString(",")
-// 	// 	}
-// 	// 	var prescription Prescription
-// 	// 	err = json.Unmarshal(queryResult.Value, &prescription)
-// 	// 	if err != nil {
-// 	// 		return "", err
-// 	// 	}
-// 	// 	fmt.Println("buffer string : ", string(queryResult.Value))
-// 	// 	buffer.WriteString(string(queryResult.Value))
-// 	// 	prescriptions = append(prescriptions, &prescription)
-// 	// 	bArrayMemberAlreadyWritten = true
-// 	// }
-// 	// fmt.Println("resultsIterator.HasNext() - After : ", resultsIterator.HasNext())
-// 	// buffer.WriteString("]")
-// 	// fmt.Println("buffer string : ", buffer.String())
-
-// 	/******************************/
-// 	prescriptions, err := constructQueryResponseFromIterator(resultsIterator)
-// 	if err != nil {
-// 		return "", err
-// 	}
-
-// 	fmt.Println("********** End of GetPatientPrescriptionHistory Function******************")
-// 	//return buffer.String(), nil
-// 	return prescriptions, nil
-// }
-
 func (s *SmartContract) GetPatientPrescriptionHistory(ctx contractapi.TransactionContextInterface, queryStringInput string) (string, error) {
 	input := struct {
 		Id          string `json:"id"`
@@ -833,7 +791,6 @@ func (s *SmartContract) GetPatientPrescriptionHistory(ctx contractapi.Transactio
 	}
 	fmt.Println("userRole :", attributes["userRole"])
 	fmt.Println("organization :", attributes["organization"])
-	fmt.Println("orgRole :", attributes["orgRole"])
 
 	//validate patient attributes
 	userBytes, err := getEntityDetails(ctx, input.Id, PATIENT)
@@ -851,8 +808,8 @@ func (s *SmartContract) GetPatientPrescriptionHistory(ctx contractapi.Transactio
 	}
 	fmt.Println("User Data : ", patientDetail)
 
-	isAccessFlag := false
 	/*Check if already granted access or not*/
+	isAccessFlag := false
 	queryString := fmt.Sprintf(`{"selector":{"id":"%s","docType":"ACCESS","$or":[{"doctorId":"%s"},{"doctorId":"%s"}]}}`, input.Id, attributes["organization"], identity)
 	fmt.Println("access queryString : ", queryString)
 	key, err := isAccessGranted(ctx, queryString)
@@ -879,12 +836,11 @@ func (s *SmartContract) GetPatientPrescriptionHistory(ctx contractapi.Transactio
 			attributes["userRole"] == HOSPITAL_ADMIN ||
 			attributes["userRole"] == PATIENT) &&
 		patientDetail.DocType == PATIENT {
-		// return "", fmt.Errorf("Only Doctor, Admins and Patients are authorized to see Prescription details")
 		isAccessFlag = true
 	}
 
 	if !isAccessFlag {
-		return "", fmt.Errorf("You are not authorized to see patient data")
+		return "", fmt.Errorf("You are not authorized to see patient prescription")
 	}
 
 	resultsIterator, err := ctx.GetStub().GetQueryResult(input.QueryString)
@@ -904,80 +860,6 @@ func (s *SmartContract) GetPatientPrescriptionHistory(ctx contractapi.Transactio
 	}
 
 	fmt.Println("********** End of GetPatientPrescriptionHistory Function ******************")
-	return prescriptions, nil
-}
-
-func (s *SmartContract) GetPatientPrescriptionHistory1(ctx contractapi.TransactionContextInterface, queryStringInput string) (string, error) {
-	fmt.Println("Query String : ", queryStringInput)
-
-	resultsIterator, err := ctx.GetStub().GetQueryResult(queryStringInput)
-	if err != nil {
-		return "", err
-	}
-	defer resultsIterator.Close()
-
-	var buffer bytes.Buffer
-	if !resultsIterator.HasNext() {
-		fmt.Println(`{ "message" : "No Prescription records found"}`)
-		return "", fmt.Errorf("No Prescription records found")
-	}
-
-	buffer.WriteString("[")
-	var prescriptions []*Prescription
-	fmt.Println("resultsIterator : ", resultsIterator)
-	fmt.Println("resultsIterator.HasNext() - Before : ", resultsIterator.HasNext())
-
-	bArrayMemberAlreadyWritten := false
-	for resultsIterator.HasNext() {
-		queryResult, err := resultsIterator.Next()
-		if err != nil {
-			return "", err
-		}
-		if bArrayMemberAlreadyWritten == true {
-			buffer.WriteString(",")
-		}
-		var prescription Prescription
-		err = json.Unmarshal(queryResult.Value, &prescription)
-		if err != nil {
-			return "", err
-		}
-		fmt.Println("buffer string : ", string(queryResult.Value))
-		buffer.WriteString(string(queryResult.Value))
-		prescriptions = append(prescriptions, &prescription)
-		bArrayMemberAlreadyWritten = true
-	}
-	fmt.Println("resultsIterator.HasNext() - After : ", resultsIterator.HasNext())
-	buffer.WriteString("]")
-	fmt.Println("buffer string : ", buffer.String())
-
-	fmt.Println("********** End of GetPatientPrescriptionHistory Function******************")
-	return buffer.String(), nil
-}
-
-func (s *SmartContract) GetPatientPrescriptionHistory_bkp(ctx contractapi.TransactionContextInterface, queryStringInput string) ([]*Prescription, error) {
-	fmt.Println("Query String : ", queryStringInput)
-
-	resultsIterator, err := ctx.GetStub().GetQueryResult(queryStringInput)
-	if err != nil {
-		return nil, err
-	}
-	defer resultsIterator.Close()
-
-	var prescriptions []*Prescription
-
-	for resultsIterator.HasNext() {
-		queryResult, err := resultsIterator.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		var prescription Prescription
-		err = json.Unmarshal(queryResult.Value, &prescription)
-		if err != nil {
-			return nil, err
-		}
-		prescriptions = append(prescriptions, &prescription)
-	}
 	return prescriptions, nil
 }
 
@@ -1077,6 +959,76 @@ func constructQueryResponseFromIterator_bkp(resultsIterator shim.StateQueryItera
 	return prescriptions, nil
 }
 
+func getEntityDetails_bkp(ctx contractapi.TransactionContextInterface, entityId string, docType string) (interface{}, error) {
+	var compositeKey string
+	var err error
+	if docType == PRESCRIPTION || docType == ACCESS || docType == BILLING {
+		compositeKey = entityId
+	} else {
+		compositeKey, err = ctx.GetStub().CreateCompositeKey(idDoctypeIndex, []string{entityId, docType})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create composite key for hospital %v and err is :%v", entityId, err.Error())
+		}
+	}
+
+	objectBytes, err := ctx.GetStub().GetState(compositeKey)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to read data from world state %s", err.Error())
+	}
+	if objectBytes == nil {
+		return nil, nil
+	}
+
+	// Decoding the objectBytes assuming it's JSON
+	var data map[string]interface{}
+	_ = json.Unmarshal(objectBytes, &data)
+
+	// Access the "active" attribute
+	// activeAttribute, ok := data["active"]
+	// if !ok {
+	// 	return nil, fmt.Errorf("ACTIVE attribute not found")
+	// }
+	// fmt.Println("activeAttribute :", activeAttribute.(bool))
+	// if !activeAttribute.(bool) {
+	// 	return nil, fmt.Errorf("%s is not active ", entityId)
+	// }
+
+	activeAttribute, ok := data["active"]
+	fmt.Println("activeAttribute :", activeAttribute.(bool))
+	if ok && !activeAttribute.(bool) {
+		return nil, fmt.Errorf("%s is not active ", entityId)
+	}
+
+	switch docType {
+	case HOSPITAL:
+		var hospital Hospital
+		err = json.Unmarshal(objectBytes, &hospital)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to unmarshal hospital data: %s", err.Error())
+		}
+		fmt.Println("Hospital Rec : ", hospital)
+		return hospital, nil
+	case HOSPITAL_ADMIN:
+		var hospitalAdmin HospitalAdmin
+		err = json.Unmarshal(objectBytes, &hospitalAdmin)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to unmarshal hospital admin data: %s", err.Error())
+		}
+		fmt.Println("Hospital Admin Rec : ", hospitalAdmin)
+		return hospitalAdmin, nil
+	case DOCTOR, PATIENT, DRUGGIST, PATHOLOGIST:
+		var user User
+		err = json.Unmarshal(objectBytes, &user)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to unmarshal %s data: %s", docType, err.Error())
+		}
+		fmt.Println("User Rec : ", user)
+		return user, nil
+	default:
+		return nil, fmt.Errorf("Unsupported docType: %s", docType)
+	}
+}
+
 func getEntityDetails(ctx contractapi.TransactionContextInterface, entityId string, docType string) (interface{}, error) {
 	compositeKey, err := ctx.GetStub().CreateCompositeKey(idDoctypeIndex, []string{entityId, docType})
 	if err != nil {
@@ -1099,7 +1051,10 @@ func getEntityDetails(ctx contractapi.TransactionContextInterface, entityId stri
 	if !ok {
 		return nil, fmt.Errorf("Active attribute not found")
 	}
-	fmt.Println("activeAttribute :", activeAttribute)
+	fmt.Println("activeAttribute :", activeAttribute.(bool))
+	if !activeAttribute.(bool) {
+		return nil, fmt.Errorf("Entity is not active")
+	}
 
 	return objectBytes, nil
 }
@@ -1121,16 +1076,6 @@ func getUserIdentityName(ctx contractapi.TransactionContextInterface) (string, e
 	fmt.Println("userId:----------", userId)
 
 	return userId, nil
-}
-
-func getCertificateAttributeValue(ctx contractapi.TransactionContextInterface, attrName string) (string, bool, error) {
-	attrValue, found, err := ctx.GetClientIdentity().GetAttributeValue(attrName)
-	if err != nil {
-		return "", false, fmt.Errorf("Failed to read attrValue: %v", err)
-	}
-	fmt.Println("Attrvalue : ", attrValue)
-
-	return attrValue, found, nil
 }
 
 func getAllCertificateAttributes(ctx contractapi.TransactionContextInterface, attrNames []string) (map[string]string, error) {
