@@ -21,7 +21,10 @@ const HOSPITAL_ADMIN = "HOSPITAL_ADMIN"
 const DRUGGIST = "DRUGGIST"
 const PATHOLOGIST = "PATHOLOGIST"
 const ACCESS = "ACCESS"
-const BILLING = "BILLING"
+
+// const BILLING = "BILLING"
+const MEDICINE_BILL = "MEDICINE_BILL"
+const PATHOLOGY_BILL = "PATHOLOGY_BILL"
 
 const ADMIN = "admin"
 const DOCTOR = "DOCTOR"
@@ -107,17 +110,21 @@ type Prescription struct {
 	DoctorId       string     `json:"doctorId,omitempty"`
 	Id             string     `json:"id"`
 	Desc           string     `json:"desc"`
+	Url            string     `json:"url"`
+	Hash           string     `json:"hash"`
 	MedicineRecord []Medicine `json:"medicine"`
 }
 
 type Billing struct {
-	Id                   string     `json:"id,omitempty"`
+	Id                   string     `json:"id,omitempty"` //PatientId
 	DocType              string     `json:"docType,omitempty"`
 	PrescriptionId       string     `json:"prescriptionId,omitempty"`
 	DoctorId             string     `json:"doctorId,omitempty"`
 	HealthcareProviderId string     `json:"healthcareProviderId,omitempty"`
 	TotalBill            int32      `json:"totalBill,omitempty"`
 	Timestamp            int64      `json:"timestamp,omitempty"`
+	Url                  string     `json:"url"`
+	Hash                 string     `json:"hash"`
 	MedicineRecord       []Medicine `json:"medicine,omitempty"`
 }
 
@@ -199,7 +206,7 @@ func (s *SmartContract) AddHospital(ctx contractapi.TransactionContextInterface,
 	if err != nil {
 		return fmt.Errorf("failed to insert hospital details to couchDB : %v", err.Error())
 	}
-	fmt.Println("********** End of AddHospital Function******************")
+	fmt.Println("********** End of AddHospital Function ******************")
 	return nil
 }
 
@@ -679,6 +686,34 @@ func (s *SmartContract) GenerateBill(ctx contractapi.TransactionContextInterface
 	return txID, nil
 }
 
+func (s *SmartContract) ViewBill(ctx contractapi.TransactionContextInterface, billId string) (string, error) {
+
+	//get bill viewer attributes
+	attributes, err := getAllCertificateAttributes(ctx, []string{"userRole"})
+	if err != nil {
+		return "", err
+	}
+	fmt.Println("userRole :", attributes["userRole"])
+
+	//Get bill details
+	objectBytes, err := ctx.GetStub().GetState(billId)
+	if err != nil {
+		return "", fmt.Errorf("Failed to read data from world state %s", err.Error())
+	}
+	if objectBytes == nil {
+		return "", fmt.Errorf("Bill does not exist with id %s", billId)
+	}
+
+	var bill Billing
+	err = json.Unmarshal(objectBytes, &bill)
+
+	if (attributes["userRole"] == DRUGGIST || attributes["userRole"] == PATHOLOGIST) && (bill.DocType == PATHOLOGY_BILL || bill.DocType == MEDICINE_BILL) {
+		return "", fmt.Errorf("You are not authorized to see bill details")
+	}
+	return string(objectBytes), nil
+
+}
+
 func (s *SmartContract) AccessRights(ctx contractapi.TransactionContextInterface, accessInputString string) (string, error) {
 	accessInput := struct {
 		FromUserId   string `json:"fromUserId"`
@@ -890,6 +925,92 @@ func (s *SmartContract) GetAllAccess(ctx contractapi.TransactionContextInterface
 
 }
 
+func (s *SmartContract) UpdateDetails(ctx contractapi.TransactionContextInterface, stringInput string) error {
+	fmt.Println("stringInput:", stringInput)
+	var input map[string]interface{}
+	err := json.Unmarshal([]byte(stringInput), &input)
+	if err != nil {
+		return fmt.Errorf("Error while doing unmarshal of input string : %v", err.Error())
+	}
+	fmt.Println("Input String :", input)
+
+	docType, ok := input["docType"].(string)
+	if !ok {
+		return fmt.Errorf("Doctype field not found or not a string")
+	}
+	fmt.Println("docType :", docType)
+
+	id, ok := input["id"].(string)
+	if !ok {
+		return fmt.Errorf("Id field not found or not a string")
+	}
+	fmt.Println("Id :", id)
+
+	hospitalId, ok := input["hospitalId"].(string)
+	if !ok {
+		return fmt.Errorf("Hospital Id field not found or not a string")
+	}
+	fmt.Println("hospitalId :", hospitalId)
+
+	var newDetails interface{}
+	if docType == HOSPITAL {
+		newDetails = &Hospital{}
+	} else if docType == HOSPITAL_ADMIN {
+		newDetails = &HospitalAdmin{}
+	} else if docType == DOCTOR || docType == PATIENT || docType == DRUGGIST || docType == PATHOLOGIST {
+		newDetails = &User{}
+	} else {
+		return fmt.Errorf("Unknown Doctype")
+	}
+
+	err = json.Unmarshal([]byte(stringInput), newDetails)
+	if err != nil {
+		return fmt.Errorf("Failed to unmarshaling to struct: %v", err.Error())
+	}
+	fmt.Println("newDetails :", newDetails)
+
+	//validate entity details
+	userBytes, err := getEntityDetails(ctx, id, docType)
+	if err != nil {
+		return err
+	}
+	if userBytes == nil {
+		return fmt.Errorf("Record for %v patient does not exist", id)
+	}
+
+	fmt.Println("userBytes :", string(userBytes.([]byte)))
+
+	//fetching cerificate attributes
+	attributes, err := getAllCertificateAttributes(ctx, []string{"userRole", "organization"})
+	if err != nil {
+		return err
+	}
+	fmt.Println("userRole :", attributes["userRole"])
+	fmt.Println("organization :", attributes["organization"])
+
+	if attributes["userRole"] != HOSPITAL_ADMIN || hospitalId != attributes["organization"] {
+		return fmt.Errorf("Only Hospital Admin are allowed to register")
+	}
+
+	//updating records
+	objectBytes, err := json.Marshal(newDetails)
+	if err != nil {
+		return fmt.Errorf("failed to marshal of update string record : %v", err.Error())
+	}
+
+	compositeKey, err := ctx.GetStub().CreateCompositeKey(idDoctypeIndex, []string{id, docType})
+	if err != nil {
+		return fmt.Errorf("failed to create composite key for entity %v and err is :%v", id, err.Error())
+	}
+	err = ctx.GetStub().PutState(compositeKey, objectBytes)
+	if err != nil {
+		return fmt.Errorf("failed to update entity details to couchDB : %v", err.Error())
+	}
+	fmt.Println("********** End of Update Details Function ******************")
+
+	return nil
+}
+
 func getQueryResultForQueryStringWithPagination(ctx contractapi.TransactionContextInterface, queryString string, pageSize int32, bookmark string) (string, error) {
 
 	resultsIterator, responseMetadata, err := ctx.GetStub().GetQueryResultWithPagination(queryString, pageSize, bookmark)
@@ -959,75 +1080,75 @@ func constructQueryResponseFromIterator_bkp(resultsIterator shim.StateQueryItera
 	return prescriptions, nil
 }
 
-func getEntityDetails_bkp(ctx contractapi.TransactionContextInterface, entityId string, docType string) (interface{}, error) {
-	var compositeKey string
-	var err error
-	if docType == PRESCRIPTION || docType == ACCESS || docType == BILLING {
-		compositeKey = entityId
-	} else {
-		compositeKey, err = ctx.GetStub().CreateCompositeKey(idDoctypeIndex, []string{entityId, docType})
-		if err != nil {
-			return nil, fmt.Errorf("failed to create composite key for hospital %v and err is :%v", entityId, err.Error())
-		}
-	}
+// func getEntityDetails_bkp(ctx contractapi.TransactionContextInterface, entityId string, docType string) (interface{}, error) {
+// 	var compositeKey string
+// 	var err error
+// 	if docType == PRESCRIPTION || docType == ACCESS || docType == BILLING {
+// 		compositeKey = entityId
+// 	} else {
+// 		compositeKey, err = ctx.GetStub().CreateCompositeKey(idDoctypeIndex, []string{entityId, docType})
+// 		if err != nil {
+// 			return nil, fmt.Errorf("failed to create composite key for hospital %v and err is :%v", entityId, err.Error())
+// 		}
+// 	}
 
-	objectBytes, err := ctx.GetStub().GetState(compositeKey)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to read data from world state %s", err.Error())
-	}
-	if objectBytes == nil {
-		return nil, nil
-	}
+// 	objectBytes, err := ctx.GetStub().GetState(compositeKey)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("Failed to read data from world state %s", err.Error())
+// 	}
+// 	if objectBytes == nil {
+// 		return nil, nil
+// 	}
 
-	// Decoding the objectBytes assuming it's JSON
-	var data map[string]interface{}
-	_ = json.Unmarshal(objectBytes, &data)
+// 	// Decoding the objectBytes assuming it's JSON
+// 	var data map[string]interface{}
+// 	_ = json.Unmarshal(objectBytes, &data)
 
-	// Access the "active" attribute
-	// activeAttribute, ok := data["active"]
-	// if !ok {
-	// 	return nil, fmt.Errorf("ACTIVE attribute not found")
-	// }
-	// fmt.Println("activeAttribute :", activeAttribute.(bool))
-	// if !activeAttribute.(bool) {
-	// 	return nil, fmt.Errorf("%s is not active ", entityId)
-	// }
+// 	// Access the "active" attribute
+// 	// activeAttribute, ok := data["active"]
+// 	// if !ok {
+// 	// 	return nil, fmt.Errorf("ACTIVE attribute not found")
+// 	// }
+// 	// fmt.Println("activeAttribute :", activeAttribute.(bool))
+// 	// if !activeAttribute.(bool) {
+// 	// 	return nil, fmt.Errorf("%s is not active ", entityId)
+// 	// }
 
-	activeAttribute, ok := data["active"]
-	fmt.Println("activeAttribute :", activeAttribute.(bool))
-	if ok && !activeAttribute.(bool) {
-		return nil, fmt.Errorf("%s is not active ", entityId)
-	}
+// 	activeAttribute, ok := data["active"]
+// 	fmt.Println("activeAttribute :", activeAttribute.(bool))
+// 	if ok && !activeAttribute.(bool) {
+// 		return nil, fmt.Errorf("%s is not active ", entityId)
+// 	}
 
-	switch docType {
-	case HOSPITAL:
-		var hospital Hospital
-		err = json.Unmarshal(objectBytes, &hospital)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to unmarshal hospital data: %s", err.Error())
-		}
-		fmt.Println("Hospital Rec : ", hospital)
-		return hospital, nil
-	case HOSPITAL_ADMIN:
-		var hospitalAdmin HospitalAdmin
-		err = json.Unmarshal(objectBytes, &hospitalAdmin)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to unmarshal hospital admin data: %s", err.Error())
-		}
-		fmt.Println("Hospital Admin Rec : ", hospitalAdmin)
-		return hospitalAdmin, nil
-	case DOCTOR, PATIENT, DRUGGIST, PATHOLOGIST:
-		var user User
-		err = json.Unmarshal(objectBytes, &user)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to unmarshal %s data: %s", docType, err.Error())
-		}
-		fmt.Println("User Rec : ", user)
-		return user, nil
-	default:
-		return nil, fmt.Errorf("Unsupported docType: %s", docType)
-	}
-}
+// 	switch docType {
+// 	case HOSPITAL:
+// 		var hospital Hospital
+// 		err = json.Unmarshal(objectBytes, &hospital)
+// 		if err != nil {
+// 			return nil, fmt.Errorf("Failed to unmarshal hospital data: %s", err.Error())
+// 		}
+// 		fmt.Println("Hospital Rec : ", hospital)
+// 		return hospital, nil
+// 	case HOSPITAL_ADMIN:
+// 		var hospitalAdmin HospitalAdmin
+// 		err = json.Unmarshal(objectBytes, &hospitalAdmin)
+// 		if err != nil {
+// 			return nil, fmt.Errorf("Failed to unmarshal hospital admin data: %s", err.Error())
+// 		}
+// 		fmt.Println("Hospital Admin Rec : ", hospitalAdmin)
+// 		return hospitalAdmin, nil
+// 	case DOCTOR, PATIENT, DRUGGIST, PATHOLOGIST:
+// 		var user User
+// 		err = json.Unmarshal(objectBytes, &user)
+// 		if err != nil {
+// 			return nil, fmt.Errorf("Failed to unmarshal %s data: %s", docType, err.Error())
+// 		}
+// 		fmt.Println("User Rec : ", user)
+// 		return user, nil
+// 	default:
+// 		return nil, fmt.Errorf("Unsupported docType: %s", docType)
+// 	}
+// }
 
 func getEntityDetails(ctx contractapi.TransactionContextInterface, entityId string, docType string) (interface{}, error) {
 	compositeKey, err := ctx.GetStub().CreateCompositeKey(idDoctypeIndex, []string{entityId, docType})
